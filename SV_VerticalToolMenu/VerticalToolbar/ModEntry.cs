@@ -179,7 +179,7 @@ namespace SB_VerticalToolMenu
         {
             int MAXcurrentToolIndex = 11;
 
-            if (!(!Game1.player.UsingTool && !Game1.dialogueUp && ((Game1.pickingTool || Game1.player.CanMove) && (!Game1.player.areAllItemsNull() && !Game1.eventUp)))) return;
+            if (!(!Game1.player.UsingTool && !Game1.dialogueUp && ((Game1.player.CurrentTool is StardewValley.Tools.Pickaxe || Game1.player.CanMove) && (Game1.player.Items.CountItemStacks() != 0 && !Game1.eventUp)))) return;
             if (Game1.options.invertScrollDirection)
                 num *= -1;
 
@@ -244,7 +244,7 @@ namespace SB_VerticalToolMenu
         private void ModShiftToolbar(bool right)
         {
             // This is simply shiftToolbar, but modified to not use NetCode, and taking to account the vertical toolbar
-            if (Game1.player.Items == null || Game1.player.Items.Count < 12 || (Game1.player.UsingTool || Game1.dialogueUp) || (!Game1.pickingTool && !Game1.player.CanMove || (Game1.player.areAllItemsNull() || Game1.eventUp)) || Game1.farmEvent != null)
+            if (Game1.player.Items == null || Game1.player.Items.Count < 12 || (Game1.player.UsingTool || Game1.dialogueUp) || (Game1.player.CurrentTool is not StardewValley.Tools.Pickaxe && !Game1.player.CanMove || (Game1.player.Items.CountItemStacks() == 0 || Game1.eventUp)) || Game1.farmEvent != null)
                 return;
             Game1.playSound("shwip");
             if (Game1.player.CurrentItem != null)

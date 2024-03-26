@@ -12,13 +12,12 @@ namespace SpaceBaby.AdjustableFarmWaterColor
     public class ModEntry : Mod
     {
         private ModConfig Config;
-        private BuildableGameLocation Farm;
+        private Farm Farm;
 
         public override void Entry(IModHelper helper)
         {
-            Farm = null;
+            Farm = Game1.getFarm();
             this.Config = this.Helper.ReadConfig<ModConfig>();
-            helper.Events.GameLoop.SaveLoaded += GetFarm;
             helper.Events.Display.Rendering += ChangeWater;
         }
 
@@ -27,11 +26,6 @@ namespace SpaceBaby.AdjustableFarmWaterColor
             if (Farm is null) return;
             if(Farm.waterColor.Value != this.Config.waterColor)
                 this.Farm.waterColor.Value = this.Config.waterColor;
-        }
-
-        private void GetFarm(object sender, SaveLoadedEventArgs e)
-        {
-            this.Farm = (StardewValley.Locations.BuildableGameLocation)Game1.locations.ToList().Find(x => x is Farm);
         }
     }
 }

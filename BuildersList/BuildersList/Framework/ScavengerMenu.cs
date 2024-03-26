@@ -96,7 +96,7 @@ namespace SpaceBaby.BuildersList
                     }
                     if (this.iscooking)
                     {
-                        Game1.player.cookedRecipe(obj.ParentSheetIndex);
+                        Game1.player.cookedRecipe(obj.DisplayName);
                     }
                     if (!this.iscooking)
                     {

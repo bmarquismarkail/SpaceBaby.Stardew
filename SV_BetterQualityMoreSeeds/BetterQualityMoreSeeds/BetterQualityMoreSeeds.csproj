@@ -3,7 +3,7 @@
     <RootNamespace>SpaceBaby.BetterQualityMoreSeeds</RootNamespace>
     <AssemblyName>BetterQualityMoreSeeds</AssemblyName>
     <Version>1.0.0</Version>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
 	<EnableHarmony>true</EnableHarmony>
   </PropertyGroup>
 

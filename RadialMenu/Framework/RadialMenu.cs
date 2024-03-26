@@ -75,8 +75,8 @@ namespace SpaceBaby.RadialMenu.Framework
                 Vector2 position = new Vector2((float)vecX, (float)vecY );
 
                 int currentItemIndex = Convert.ToInt32(this.buttons[i].name);
-                if (Game1.player.items[currentItemIndex] != null)
-                    Game1.player.items[currentItemIndex].drawInMenu(b, position, Game1.player.CurrentToolIndex == currentItemIndex ? 0.9f : this.buttons.ElementAt(i).scale * 0.8f, 1f, 0.88f);
+                if (Game1.player.Items[currentItemIndex] != null)
+                    Game1.player.Items[currentItemIndex].drawInMenu(b, position, Game1.player.CurrentToolIndex == currentItemIndex ? 0.9f : this.buttons.ElementAt(i).scale * 0.8f, 1f, 0.88f);
             }
             base.draw(b);
         }
