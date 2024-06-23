@@ -203,11 +203,18 @@ namespace SpaceBaby.PartOfTheCommunity
                                 continue;
                             }
 
-                            // add witness bonus
+                            // count how often NPC overhears conversation
                             nearbyCharacter.NearbyTalksSeen++;
-                            nearbyNpc.doEmote(Character.happyEmote);
-                            this.AddFriendshipPoints(nearbyNpc as NPC, this.Config.WitnessBonus);
-                            this.Monitor.Log($"{nearbyNpc.Name} saw you taking to {friend.Name}. +{this.Config.WitnessBonus} Friendship: {nearbyNpc.Name}", LogLevel.Info);
+
+                            // add witness bonus when overhearing 2^n conversations
+                            if((nearbyCharacter.NearbyTalksSeen & (nearbyCharacter.NearbyTalksSeen-1)) == 0)
+                            {
+                                nearbyNpc.doEmote(Character.happyEmote);
+                                this.AddFriendshipPoints(nearbyNpc as NPC, this.Config.WitnessBonus);
+                                this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. +{this.Config.WitnessBonus} friendship: {nearbyNpc.Name}", LogLevel.Info);
+                            }
+                            else // log TalksSeen counter
+                                this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. {nearbyNpc.Name} has seen {nearbyCharacter.NearbyTalksSeen} talks", LogLevel.Info);
                         }
                         friend.HasTalked = true;
                     }
@@ -293,7 +300,7 @@ namespace SpaceBaby.PartOfTheCommunity
             // bonus for giving gifts to an NPC's friend/relative
             foreach (CharacterInfo character in this.Characters.Values)
             {
-                if (character.TryGetNpc(out NPC npc))
+                if (!character.TryGetNpc(out NPC npc))
                     continue;
 
                 // gifted relations bonus
