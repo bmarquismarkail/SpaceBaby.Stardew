@@ -14,7 +14,7 @@ namespace SpaceBaby.BuildersList
     internal class ScavengerMenu : IClickableMenu
     {
         public CraftingRecipe ScavengerRecipe;
-        private Dictionary<int, int> currentRecipeList;
+        private Dictionary<string, int> currentRecipeList;
         public StardewModdingAPI.IReflectionHelper Reflection;
         public bool iscooking, recipeListNeedsUpdate;
         private ClickableComponent button;
@@ -31,11 +31,11 @@ namespace SpaceBaby.BuildersList
                 button = new ClickableComponent(initalPosition, "");
             //until I can populate the recipe, button is still this
             button = new ClickableComponent(initalPosition, "");
-            currentRecipeList = new Dictionary<int, int>();
+            currentRecipeList = new Dictionary<string, int>();
         }
         private void getRecipeList(StardewModdingAPI.IReflectionHelper reflection)
         {
-            this.currentRecipeList = reflection.GetField<Dictionary<int, int>>(ScavengerRecipe, "recipeList").GetValue();
+            this.currentRecipeList = reflection.GetField<Dictionary<string, int>>(ScavengerRecipe, "recipeList").GetValue();
             this.recipeListNeedsUpdate = !this.recipeListNeedsUpdate;
         }
 
@@ -132,32 +132,64 @@ namespace SpaceBaby.BuildersList
             int num1 = LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.ko ? 8 : 0;
             b.Draw(Game1.staminaRect, new Rectangle((int)((double)position.X + 8.0), (int)((double)position.Y + 32.0 + (double)Game1.smallFont.MeasureString("Ing!").Y) - 4 - 2 - (int)((double)num1 * 1.5), width - 32, 2), Game1.textColor * 0.35f);
             Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.567"), Game1.smallFont, position + new Vector2(8f, 28f), Game1.textColor * 0.75f, 1f, -1f, -1, -1, 1f, 3);
-            for (int index = 0; index < this.currentRecipeList.Count; ++index)
+
+            for (int i = 0; i < this.currentRecipeList.Count; ++i)
             {
-                int num2 = this.currentRecipeList.Values.ElementAt<int>(index);
-                int item_index = this.currentRecipeList.Keys.ElementAt<int>(index);
-                int itemCount = Game1.player.getItemCount(item_index, 8);
-                int num3 = 0;
-                int num4 = num2 - itemCount;
+                var entry = this.currentRecipeList.ElementAt(i);
+
+                string unqualifiedItemId = entry.Key;
+                int requiredQuantity = entry.Value;
+
+                int inventoryItemCount = Game1.player.Items.CountId(unqualifiedItemId);
+
+                int totalItemCount = requiredQuantity - inventoryItemCount;
+                
+                int additionalItemCount = 0;
+                
                 if (additional_crafting_items != null)
                 {
-                    num3 = Game1.player.getItemCountInList(additional_crafting_items, item_index, 8);
-                    if (num4 > 0)
-                        num4 -= num3;
+                    additionalItemCount = Game1.player.getItemCountInList(additional_crafting_items, unqualifiedItemId);
+                    if (totalItemCount > 0)
+                        totalItemCount -= additionalItemCount;
                 }
-                string nameFromIndex = ScavengerRecipe.getNameFromIndex(this.currentRecipeList.Keys.ElementAt<int>(index));
-                Color color = num4 <= 0 ? Game1.textColor : Color.Red;
-                b.Draw(Game1.objectSpriteSheet, new Vector2(position.X, position.Y + 64f + (float)(index * 64 / 2) + (float)(index * 4)), new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, ScavengerRecipe.getSpriteIndexFromRawIndex(this.currentRecipeList.Keys.ElementAt<int>(index)), 16, 16)), Color.White, 0.0f, Vector2.Zero, 2f, SpriteEffects.None, 0.86f);
-                Utility.drawTinyDigits(this.currentRecipeList.Values.ElementAt<int>(index), b, new Vector2(position.X + 32f - Game1.tinyFont.MeasureString(string.Concat((object)this.currentRecipeList.Values.ElementAt<int>(index))).X, (float)((double)position.Y + 64.0 + (double)(index * 64 / 2) + (double)(index * 4) + 21.0)), 2f, 0.87f, Color.AntiqueWhite);
-                Vector2 position1 = new Vector2((float)((double)position.X + 32.0 + 8.0), (float)((double)position.Y + 64.0 + (double)(index * 64 / 2) + (double)(index * 4) + 4.0));
-                Utility.drawTextWithShadow(b, nameFromIndex, Game1.smallFont, position1, color, 1f, -1f, -1, -1, 1f, 3);
+
+                Item item = ItemRegistry.Create(unqualifiedItemId);
+                
+                string itemName = item.DisplayName;
+                
+                Color color = totalItemCount <= 0 ? Game1.textColor : Color.Red;
+                
+                b.Draw(Game1.objectSpriteSheet, 
+                    new Vector2(position.X, position.Y + 64f + (float)(i * 64 / 2) + (float)(i * 4)), 
+                    new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, item.ParentSheetIndex, 16, 16)), 
+                    Color.White, 
+                    0.0f, 
+                    Vector2.Zero, 
+                    2f, 
+                    SpriteEffects.None, 
+                    0.86f);
+                
+                Utility.drawTinyDigits(this.currentRecipeList.Values.ElementAt<int>(i), 
+                    b, 
+                    new Vector2(position.X + 32f - Game1.tinyFont.MeasureString(string.Concat((object)this.currentRecipeList.Values.ElementAt<int>(i))).X,
+                        (float)((double)position.Y + 64.0 + (double)(i * 64 / 2) + (double)(i * 4) + 21.0)),
+                    2f,
+                    0.87f,
+                    Color.AntiqueWhite);
+                
+                Vector2 position1 = new Vector2((float)((double)position.X + 32.0 + 8.0),
+                    (float)((double)position.Y + 64.0 + (double)(i * 64 / 2) + (double)(i * 4) + 4.0));
+                
+                Utility.drawTextWithShadow(b, itemName, Game1.smallFont, position1, color, 1f, -1f, -1, -1, 1f, 3);
+                
                 if (Game1.options.showAdvancedCraftingInformation)
                 {
                     position1.X = (float)((double)position.X + (double)width - 40.0);
                     b.Draw(Game1.mouseCursors, new Rectangle((int)position1.X, (int)position1.Y + 2, 22, 26), new Rectangle?(new Rectangle(268, 1436, 11, 13)), Color.White);
-                    Utility.drawTextWithShadow(b, string.Concat((object)(itemCount + num3)), Game1.smallFont, position1 - new Vector2(Game1.smallFont.MeasureString((itemCount + num3).ToString() + " ").X, 0.0f), color, 1f, -1f, -1, -1, 1f, 3);
+                    Utility.drawTextWithShadow(b, string.Concat((object)(inventoryItemCount + additionalItemCount)), Game1.smallFont, position1 - new Vector2(Game1.smallFont.MeasureString((inventoryItemCount + additionalItemCount).ToString() + " ").X, 0.0f), color, 1f, -1f, -1, -1, 1f, 3);
                 }
             }
+            
             b.Draw(Game1.staminaRect, new Rectangle((int)position.X + 8, (int)position.Y + num1 + 64 + 4 + this.currentRecipeList.Count * 36, width - 32, 2), Game1.textColor * 0.35f);
         }
     }
