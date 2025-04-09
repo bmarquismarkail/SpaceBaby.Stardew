@@ -31,7 +31,7 @@ jobs:
         STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
       run: |
         cd ~/steamcmd
-        ./steamcmd.sh +@sSteamCmdForcePlatformType windows \
+        ./steamcmd.sh \
           +login "$STEAM_USERNAME" "$STEAM_PASSWORD" \
           +force_install_dir "$HOME/stardew" \
           +app_update 413150 validate \
