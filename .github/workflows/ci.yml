@@ -1,0 +1,46 @@
+name: Build and Package Stardew Mods
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-package:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET 6
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Restore solution packages
+        run: dotnet restore SpaceBaby.Stardew.sln
+
+      - name: Build all mods
+        run: dotnet build SpaceBaby.Stardew.sln --configuration Release --no-restore
+
+      - name: Package Mods into ZIPs
+        run: |
+          mkdir packaged
+          $mods = @("SV_PotC", "RadialMenu", "BuildersList", "SV_MidiInterface", "SV_VerticalToolMenu", "AdjustableFarmWaterColor", "SV_BetterQualityMoreSeeds")
+          foreach ($mod in $mods) {
+              $output = "$mod/bin/Release/net6.0"
+              if (Test-Path $output) {
+                  Compress-Archive -Path "$output/*" -DestinationPath "packaged/$mod.zip"
+              } else {
+                  Write-Warning "Output folder not found for $mod"
+              }
+          }
+
+      - name: Upload zipped mods
+        uses: actions/upload-artifact@v3
+        with:
+          name: StardewMods
+          path: packaged/
+
