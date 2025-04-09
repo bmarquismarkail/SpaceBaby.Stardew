@@ -54,8 +54,12 @@ namespace SpaceBaby.PartOfTheCommunity
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
         public override void Entry(IModHelper helper)
         {
-            this.Config = helper.ReadConfig<ModConfig>();
+            // Read JSON file or create one if it doesn't exist
+            Config = this.Helper.Data.ReadJsonFile<ModConfig>("config.json") ?? new ModConfig();
+            // save (generate) config file (if needed)
+            this.Helper.Data.WriteJsonFile("config.json", Config);
 
+            helper.Events.GameLoop.GameLaunched += this.OnGameLaunched;
             helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
             helper.Events.GameLoop.DayStarted += this.OnDayStarted;
             helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
@@ -67,6 +71,100 @@ namespace SpaceBaby.PartOfTheCommunity
         /*********
         ** Private methods
         *********/
+        private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
+        {
+            // get Generic Mod Config Menu's API (if it's installed)
+            var configMenu = this.Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
+            if (configMenu is null)
+                return;
+
+            // register mod
+            configMenu.Register(
+                mod: this.ModManifest,
+                reset: () => this.Config = new ModConfig(),
+                save: () => this.Helper.WriteConfig(this.Config)
+            );
+
+            // add some config options
+            {
+                configMenu.AddParagraph(
+                    mod: this.ModManifest,
+                    text: () => "Mod by Brandon Marquis Markail Green (Space Baby), 1.6 version by Nikki864, GMCM Menu by MickeyMik (Eela11)."
+                );
+                configMenu.AddSectionTitle(
+                    mod: this.ModManifest,
+                    text: () => "Bonus Points Settings"
+                );
+                configMenu.AddParagraph(
+                    mod: this.ModManifest,
+                    text: () => "The following settings allow you to set the amount of friendship points gained for each bonus. 250 points equal 1 heart."
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "Witness Bonus",
+                    tooltip: () => "Villagers within earshot of the Farmer talking to/gifting another villager will get a slight increase in friendship (every 2^n times witnessed). (Default 2)",
+                    getValue: () => this.Config.WitnessBonus,
+                    setValue: value => this.Config.WitnessBonus = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "Storyteller Bonus",
+                    tooltip: () => "Villagers will get a slight friendship increase at the end of the day if one of their friends/family members gains a gift. (Default 4)",
+                    getValue: () => this.Config.StorytellerBonus,
+                    setValue: value => this.Config.StorytellerBonus = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "Shop Bonus",
+                    tooltip: () => "Shop Owners will increase friendship when the Farmer visits their shop. (Default 4)",
+                    getValue: () => this.Config.UjamaaBonus,
+                    setValue: value => this.Config.UjamaaBonus = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "Festivities Bonus",
+                    tooltip: () => "All villagers will increase friendship simply by joining the festivities. (Default 16)",
+                    getValue: () => this.Config.UmojaBonusFestival,
+                    setValue: value => this.Config.UmojaBonusFestival = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "Marry Bonus",
+                    tooltip: () => "Marrying a villager will give an increase to the partner's family (Default 240)",
+                    getValue: () => this.Config.UmojaBonusMarry,
+                    setValue: value => this.Config.UmojaBonusMarry = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "In-law Family Bonus",
+                    tooltip: () => "Increasing your partner's/child's friendship will give an increase to the partner's family. (Default 10)",
+                    getValue: () => this.Config.UmojaBonus,
+                    setValue: value => this.Config.UmojaBonus = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "CC Bundle Store Owner Bonus",
+                    tooltip: () => "Completing the CC Bundles will give a increase to all Store Owners. (Default 20)",
+                    getValue: () => this.Config.UjimaBonusStore,
+                    setValue: value => this.Config.UjimaBonusStore = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "Bulletin Board Quest Bonus",
+                    tooltip: () => "Completing multiple Bulletin Board Quests will give a slight increase to all villagers. (Default 2)",
+                    getValue: () => this.Config.UjimaBonus,
+                    setValue: value => this.Config.UjimaBonus = value
+                );
+                configMenu.AddNumberOption(
+                    mod: this.ModManifest,
+                    name: () => "Unique Shipping Bonus",
+                    tooltip: () => "Shipping at least one new item will give a slight increase to all villagers. (Default 2)",
+                    getValue: () => this.Config.KuumbaBonus,
+                    setValue: value => this.Config.KuumbaBonus = value
+                );
+            }
+        }
+
         /// <summary>Raised after the game finishes writing data to the save file (except the initial save creation).</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
