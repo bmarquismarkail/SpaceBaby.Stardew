@@ -54,7 +54,7 @@ jobs:
 
     - name: Download SMAPI
       run: |
-        curl -L -o smapi.zip https://smapi.io/download/SMAPI-4.0.0-installer.zip
+        curl -L -o smapi.zip https://github.com/Pathoschild/SMAPI/releases/download/4.2.1/SMAPI-4.2.1-installer.zip
         unzip -q smapi.zip -d smapi
 
     - name: Install SMAPI
