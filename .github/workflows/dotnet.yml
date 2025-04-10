@@ -40,7 +40,7 @@ jobs:
 
     - name: Verify game files
       run: ls -R ~/stardew
-    
+
     - name: Write StardewValley.targets
       run: |
         echo '<Project>' > ~/stardewvalley.targets
@@ -48,10 +48,20 @@ jobs:
         echo '    <GamePath>/home/runner/stardew</GamePath>' >> ~/stardewvalley.targets
         echo '  </PropertyGroup>' >> ~/stardewvalley.targets
         echo '</Project>' >> ~/stardewvalley.targets
-      
+
     - name: Verify StardewValley.targets
       run: cat ~/stardewvalley.targets
-      
+
+    - name: Download SMAPI
+      run: |
+        cd
+        curl -L -o smapi.zip https://smapi.io/download/SMAPI-4.0.0-installer.zip
+        unzip -q smapi.zip -d smapi
+
+    -name: Install SMAPI
+      run: |
+       ~/smapi/internal/linux/SMAPI.Installer --no-prompt --install --game-path "~/stardew"
+
     # 🔽 Setup .NET and Build/Test project
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
