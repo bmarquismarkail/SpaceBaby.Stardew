@@ -59,7 +59,7 @@ jobs:
 
     - name: Install SMAPI
       run: |
-       smapi/internal/linux/SMAPI.Installer --no-prompt --install --game-path "~/stardew"
+       ./smapi/internal/linux/SMAPI.Installer --no-prompt --install --game-path "~/stardew"
 
     # 🔽 Setup .NET and Build/Test project
     - name: Setup .NET
