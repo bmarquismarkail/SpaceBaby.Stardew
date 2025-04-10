@@ -45,7 +45,7 @@ jobs:
       run: |
         echo '<Project>' > ~/stardewvalley.targets
         echo '  <PropertyGroup>' >> ~/stardewvalley.targets
-        echo '    <GamePath>/home/unner/stardew</GamePath>' >> ~/stardewvalley.targets
+        echo '    <GamePath>/home/runner/stardew</GamePath>' >> ~/stardewvalley.targets
         echo '  </PropertyGroup>' >> ~/stardewvalley.targets
         echo '</Project>' >> ~/stardewvalley.targets
       
