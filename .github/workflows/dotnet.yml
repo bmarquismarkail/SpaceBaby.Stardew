@@ -57,6 +57,10 @@ jobs:
         curl -L -o smapi.zip https://github.com/Pathoschild/SMAPI/releases/download/4.2.1/SMAPI-4.2.1-installer.zip
         unzip -q smapi.zip -d smapi
 
+    - name: verify SMAPI files
+      run: |
+        ls -R smapi
+
     - name: Install SMAPI
       run: |
        ./smapi/internal/linux/SMAPI.Installer --no-prompt --install --game-path "~/stardew"
