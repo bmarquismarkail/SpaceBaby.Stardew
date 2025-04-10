@@ -54,13 +54,12 @@ jobs:
 
     - name: Download SMAPI
       run: |
-        cd
         curl -L -o smapi.zip https://smapi.io/download/SMAPI-4.0.0-installer.zip
         unzip -q smapi.zip -d smapi
 
     - name: Install SMAPI
       run: |
-       ~/smapi/internal/linux/SMAPI.Installer --no-prompt --install --game-path "~/stardew"
+       smapi/internal/linux/SMAPI.Installer --no-prompt --install --game-path "~/stardew"
 
     # 🔽 Setup .NET and Build/Test project
     - name: Setup .NET
