@@ -18,6 +18,7 @@ jobs:
       run: |
         mkdir ~/stardew
         touch ~/stardew/Stardew\ Valley.dll
+        touch ~/stardew/Stardew\ Valley.deps.json
             
     - name: Verify game files
       run: ls -R ~/stardew
