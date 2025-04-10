@@ -40,6 +40,16 @@ jobs:
 
     - name: Verify game files
       run: ls -R ~/stardew
+    
+    - name: Write StardewValley.targets
+      run: |
+        cat <<EOF > ~/stardewvalley.targets
+        <Project>
+          <PropertyGroup>
+            <GamePath>$(HOME)/stardew</GamePath>
+          </PropertyGroup>
+        </Project>
+        EOF
 
     # 🔽 Setup .NET and Build/Test project
     - name: Setup .NET
