@@ -45,10 +45,13 @@ jobs:
       run: |
         echo '<Project>' > ~/stardewvalley.targets
         echo '  <PropertyGroup>' >> ~/stardewvalley.targets
-        echo '    <GamePath>$$([System.Environment]::GetEnvironmentVariable("HOME"))/stardew</GamePath>' >> ~/stardewvalley.targets
+        echo '    <GamePath>/home/unner/stardew</GamePath>' >> ~/stardewvalley.targets
         echo '  </PropertyGroup>' >> ~/stardewvalley.targets
         echo '</Project>' >> ~/stardewvalley.targets
-
+      
+    - name: Verify StardewValley.targets
+      run: cat ~/stardewvalley.targets
+      
     # 🔽 Setup .NET and Build/Test project
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
