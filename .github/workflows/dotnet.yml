@@ -14,30 +14,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # 🔽 Install SteamCMD and Stardew Valley
-    - name: Install dependencies for SteamCMD
+    - name: Make Stardew Valley Files
       run: |
-        sudo apt update
-        sudo apt install -y lib32gcc-s1
-
-    - name: Install SteamCMD
-      run: |
-        mkdir -p ~/steamcmd
-        cd ~/steamcmd
-        curl -s https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz
-
-    - name: Install Stardew Valley via SteamCMD
-      env:
-        STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
-        STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
-      run: |
-        cd ~/steamcmd
-        ./steamcmd.sh \
-          +login "$STEAM_USERNAME" "$STEAM_PASSWORD" \
-          +force_install_dir "$HOME/stardew" \
-          +app_update 413150 validate \
-          +quit
-
+        mkdir ~/stardew
+        touch ~/stardew/Stardew\ Valley.dll
+            
     - name: Verify game files
       run: ls -R ~/stardew
 
