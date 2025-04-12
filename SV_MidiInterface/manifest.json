@@ -5,6 +5,6 @@
   "Description": "Allows the user to Utilize their MIDI Devices",
   "UniqueID": "SpaceBaby.MIDIFramework",
   "EntryDll": "SV_MidiInterface.dll",
-  "MinimumApiVersion": "3.8.0",
+  "MinimumApiVersion": "4.0.0",
   "UpdateKeys": []
 }

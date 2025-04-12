@@ -16,7 +16,7 @@ namespace SpaceBaby.AdjustableFarmWaterColor
 
         public override void Entry(IModHelper helper)
         {
-            Farm = Game1.getFarm();
+            Farm = Game1.getLocationFromName("Farm") as Farm;
             this.Config = this.Helper.ReadConfig<ModConfig>();
             helper.Events.Display.Rendering += ChangeWater;
         }
