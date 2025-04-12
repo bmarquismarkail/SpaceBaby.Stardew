@@ -1,0 +1,34 @@
+{
+  "Format": "2.6.0",
+  "Changes": [
+    {
+      "Action": "EditData",
+      "Target": "Data/Machines",
+      "Entries": {
+        "SeedMaker": {
+          // Base logic — applies to normal items
+          "Output": {
+            "0": {
+              "Id": "{{InputItem.Id}}",
+              "Count": "1-3"
+            }
+          },
+          "QualityOverrides": {
+            "Silver": {
+              "Id": "{{InputItem.Id}}",
+              "Count": "2-4"
+            },
+            "Gold": {
+              "Id": "{{InputItem.Id}}",
+              "Count": "3-5"
+            },
+            "Iridium": {
+              "Id": "{{InputItem.Id}}",
+              "Count": "4-6"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

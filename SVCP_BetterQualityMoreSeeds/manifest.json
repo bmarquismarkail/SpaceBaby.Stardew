@@ -1,0 +1,11 @@
+{
+  "Name": "Better Quality, More Seeds",
+  "Author": "Brandon",
+  "Version": "3.0.0",
+  "Description": "Increases the number of seeds produced by Seed Maker based on crop quality.",
+  "UniqueID": "SpaceBaby.BetterQualityMoreSeeds",
+  "ContentPackFor": {
+    "UniqueID": "Pathoschild.ContentPatcher"
+  },
+  "UpdateKeys": ["Nexus:935"]
+}
