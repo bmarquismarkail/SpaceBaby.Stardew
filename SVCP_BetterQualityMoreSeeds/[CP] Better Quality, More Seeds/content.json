@@ -2,32 +2,37 @@
   "Format": "2.6.0",
   "Changes": [
     {
+      "LogName": "Adding Extra Seeds",
       "Action": "EditData",
       "Target": "Data/Machines",
+      "TargetField": [
+        "(BC)25",
+        "OutputRules",
+        "Default",
+        "OutputItem",
+        "Default"
+      ],
       "Entries": {
-        "SeedMaker": {
-          // Base logic — applies to normal items
-          "Output": {
-            "0": {
-              "Id": "{{InputItem.Id}}",
-              "Count": "1-3"
-            }
+        "StackModifiers": [
+          {
+            "Id": "SilverQualityBonus",
+            "Modification": "Add",
+            "Amount": 1,
+            "Condition": "ITEM_QUALITY Input 1 1"
           },
-          "QualityOverrides": {
-            "Silver": {
-              "Id": "{{InputItem.Id}}",
-              "Count": "2-4"
-            },
-            "Gold": {
-              "Id": "{{InputItem.Id}}",
-              "Count": "3-5"
-            },
-            "Iridium": {
-              "Id": "{{InputItem.Id}}",
-              "Count": "4-6"
-            }
+          {
+            "Id": "GoldQualityBonus",
+            "Modification": "Add",
+            "Amount": 2,
+            "Condition": "ITEM_QUALITY Input 2 2"
+          },
+          {
+            "Id": "IridiumQualityBonus",
+            "Modification": "Add",
+            "Amount": 3,
+            "Condition": "ITEM_QUALITY Input 4"
           }
-        }
+        ]
       }
     }
   ]
