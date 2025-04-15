@@ -7,39 +7,38 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework;
 
 using StardewModdingAPI;
+using System.Diagnostics;
+using StardewValley.Internal;
 
 namespace SpaceBaby.RadialMenu.Framework
 {
     public class RadialMenu : IClickableMenu
     {
-        List<ClickableComponent> buttons = new();
-        readonly IMonitor Monitor;
         readonly double ring_radius = 150.0f;
-        Vector2 selectedPosition = Vector2.Zero;
-        int previousButtonIndex = Game1.player.CurrentToolIndex;
         private int lastToolIndex = -1;
         private bool visible = false;
-        private int visibleTicks = 0;
-        private const int maxVisibleTicks = 60; // 1 second at 60fps
+        private int unselectedItemTicks = 0;
+        private int selectedItemTicks = 0;                  // Countdown just for selected item
+
+        readonly FadeHelper SelectedItemFade = new(60, 120);
+        readonly FadeHelper UnselectedItemFade = new(60, 60);
 
         //the offset in percentage
         // .25 = 25% = 1.5~ rads = 90 degree offset
-        double offset = -.25d;
+        readonly double offset = -.25d;
         private double animatedIndex = 0.0; // Smooth version of CurrentToolButtonIndex
         private const double spinSpeed = 0.15; // Higher = faster interpolation
 
         public RadialMenu(IMonitor monitor) :
            base()
         {
-            Monitor = monitor;
-            buttons = GetCurrentItems();
         }
 
-        List<ClickableComponent> GetCurrentItems()
+        static List<ClickableComponent> GetCurrentItems()
         {
-            List<ClickableComponent> buttonList = new List<ClickableComponent>();
+            List<ClickableComponent> buttonList = new();
             List<Item> itemList = Game1.player.Items.ToList().GetRange(0, 12);
-            for (int index = 0; index < itemList.Count(); index++)
+            for (int index = 0; index < itemList.Count; index++)
             {
                 if (itemList[index] != null)
                 {
@@ -50,13 +49,18 @@ namespace SpaceBaby.RadialMenu.Framework
             return buttonList;
         }
 
-        private float GetFadeAlpha()
+        private float GetUnselectedFadeAlpha()
         {
             if (!visible) return 0f;
 
-            float alpha = visibleTicks / (float)maxVisibleTicks;
-            // Ease out curve: smoother fade
-            return MathHelper.Clamp(alpha * alpha, 0f, 1f);
+            return UnselectedItemFade.GetAlpha(unselectedItemTicks);
+        }
+
+        private float GetSelectedItemAlpha()
+        {
+            if (!visible) return 0f;
+
+            return SelectedItemFade.GetAlpha(selectedItemTicks);
         }
 
         public override void update(GameTime time)
@@ -68,26 +72,30 @@ namespace SpaceBaby.RadialMenu.Framework
             if (currentIndex != lastToolIndex)
             {
                 visible = true;
-                visibleTicks = maxVisibleTicks;
+                unselectedItemTicks = UnselectedItemFade.VisibilityTime;
+                selectedItemTicks = SelectedItemFade.VisibilityTime;
                 lastToolIndex = currentIndex;
             }
-
-            else if (visibleTicks > 0)
+            else
             {
-                visibleTicks--;
-                if (visibleTicks == 0)
+                if (unselectedItemTicks > 0)
+                    unselectedItemTicks--;
+
+                if (selectedItemTicks > 0)
+                    selectedItemTicks--;
+
+                // Only mark invisible when both have expired
+                if (unselectedItemTicks == 0 && selectedItemTicks == 0)
                     visible = false;
             }
         }
 
         public override void draw(SpriteBatch b)
         {
-            float fade = GetFadeAlpha();
-
-            if (fade <= 0f || Game1.activeClickableMenu != null)
+            if (Game1.activeClickableMenu != null)
                 return;
 
-            buttons = GetCurrentItems();
+            List<ClickableComponent> buttons = GetCurrentItems();
 
             int FarmerX = (int)Game1.player.getLocalPosition(Game1.viewport).X;
             int FarmerY = (int)Game1.player.getLocalPosition(Game1.viewport).Y - (Game1.player.GetBoundingBox().Height * 2);
@@ -125,17 +133,18 @@ namespace SpaceBaby.RadialMenu.Framework
                 {
                     bool isSelected = (Game1.player.CurrentToolIndex == currentItemIndex);
 
+                    float itemFade = isSelected ? GetSelectedItemAlpha() : GetUnselectedFadeAlpha();
+                    if (itemFade <= 0f)
+                        continue; // Skip drawing fully faded items
+
                     Color tint = isSelected ? Color.White : Color.Gray * 0.9f;
 
                     float scale = isSelected ? 1.0f : buttons[i].scale * 0.5f;
 
                     float transparency = isSelected ? 1.0f : 0.75f;
-                    transparency *= fade;
+                    transparency *= itemFade;
 
                     Game1.player.Items[currentItemIndex].drawInMenu(b, position, scale, transparency, 0.88f, StackDrawType.Draw, tint, true);
-
-                    if (Game1.player.CurrentToolIndex == currentItemIndex)
-                        selectedPosition = position;
                 }
             }
             base.draw(b);
