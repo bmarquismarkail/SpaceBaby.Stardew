@@ -7,8 +7,6 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework;
 
 using StardewModdingAPI;
-using System.Diagnostics;
-using StardewValley.Internal;
 
 namespace SpaceBaby.RadialMenu.Framework
 {
@@ -31,8 +29,7 @@ namespace SpaceBaby.RadialMenu.Framework
 
         public RadialMenu(IMonitor monitor) :
            base()
-        {
-        }
+        {}
 
         static List<ClickableComponent> GetCurrentItems()
         {
@@ -89,64 +86,68 @@ namespace SpaceBaby.RadialMenu.Framework
                     visible = false;
             }
         }
+        private static int GetCurrentToolIndex(List<ClickableComponent> buttons)
+        {
+            ClickableComponent button = buttons.Find(x => Game1.player.CurrentToolIndex == Convert.ToInt32(x.name));
+            return (button != null)
+                ? Convert.ToInt32(button.name)
+                : Array.FindIndex(Game1.player.Items.ToArray(), i => i is not null);
+        }
+        private void UpdateAnimatedIndex(double targetIndex, int total)
+        {
+            double delta = (targetIndex - animatedIndex + total) % total;
+            if (delta > total / 2)
+                delta -= total;
 
+            animatedIndex = (animatedIndex + delta * spinSpeed + total) % total;
+        }
+        private Vector2 CalculateItemPosition(int index, int count, Vector2 center)
+        {
+            double angle = (index - animatedIndex) / count;
+            float x = center.X + (float)Math.Cos((offset + angle) * 2d * Math.PI) * (float)ring_radius;
+            float y = center.Y + (float)Math.Sin((offset + angle) * 2d * Math.PI) * (float)ring_radius;
+            return new Vector2(x, y);
+        }
+        private void DrawItem(SpriteBatch b, Item item, Vector2 position, bool isSelected)
+        {
+            float alpha = isSelected ? GetSelectedItemAlpha() : GetUnselectedFadeAlpha();
+            if (alpha <= 0f) return;
+
+            float scale = isSelected ? 1.0f : 0.5f;
+            float transparency = isSelected ? 1.0f : 0.75f;
+            transparency *= alpha;
+
+            Color tint = isSelected ? Color.White : Color.Gray * 0.9f;
+
+            item.drawInMenu(b, position, scale, transparency, 0.88f, StackDrawType.Draw, tint, true);
+        }
         public override void draw(SpriteBatch b)
         {
             if (Game1.activeClickableMenu != null)
                 return;
 
             List<ClickableComponent> buttons = GetCurrentItems();
+            if (buttons.Count == 0)
+                return;
 
-            int FarmerX = (int)Game1.player.getLocalPosition(Game1.viewport).X;
-            int FarmerY = (int)Game1.player.getLocalPosition(Game1.viewport).Y - (Game1.player.GetBoundingBox().Height * 2);
+            int toolIndex = GetCurrentToolIndex(buttons);
+            UpdateAnimatedIndex(toolIndex, buttons.Count);
 
-            // Find current selected tool index
-            ClickableComponent CurrentToolButton = buttons.Find(x => (Game1.player.CurrentToolIndex == Convert.ToInt32(x.name)));
-            int CurrentToolButtonIndex = (CurrentToolButton != null)
-              ? Convert.ToInt32(CurrentToolButton.name)
-              : Array.FindIndex(Game1.player.Items.ToArray(), (i => !(i is null)));
+            Vector2 center = Game1.player.getLocalPosition(Game1.viewport);
+            center.Y -= Game1.player.GetBoundingBox().Height * 2;
 
-            // === Smooth animate toward CurrentToolButtonIndex ===
-            double currentIndexDouble = (double)CurrentToolButtonIndex;
-            double total = buttons.Count;
-
-            // Wrap-around shortest-path interpolation
-            double delta = (currentIndexDouble - animatedIndex + total) % total;
-
-            if (delta > total / 2)
-                delta -= total;
-
-            animatedIndex = (animatedIndex + delta * spinSpeed + total) % total;
-
-            for (int i = 0; i < buttons.Count; i++)
+            foreach (var button in buttons)
             {
-                double angle = (i - animatedIndex) / buttons.Count;
+                int index = Convert.ToInt32(button.name);
+                Item item = Game1.player.Items[index];
 
-                float vecX = (float)(FarmerX + Math.Cos((offset + angle) * 2d * Math.PI) * ring_radius);
-                float vecY = (float)(FarmerY + Math.Sin((offset + angle) * 2d * Math.PI) * ring_radius);
+                if (item == null) continue;
 
-                Vector2 position = new Vector2(vecX, vecY);
-
-                int currentItemIndex = Convert.ToInt32(buttons[i].name);
-
-                if (Game1.player.Items[currentItemIndex] != null)
-                {
-                    bool isSelected = (Game1.player.CurrentToolIndex == currentItemIndex);
-
-                    float itemFade = isSelected ? GetSelectedItemAlpha() : GetUnselectedFadeAlpha();
-                    if (itemFade <= 0f)
-                        continue; // Skip drawing fully faded items
-
-                    Color tint = isSelected ? Color.White : Color.Gray * 0.9f;
-
-                    float scale = isSelected ? 1.0f : buttons[i].scale * 0.5f;
-
-                    float transparency = isSelected ? 1.0f : 0.75f;
-                    transparency *= itemFade;
-
-                    Game1.player.Items[currentItemIndex].drawInMenu(b, position, scale, transparency, 0.88f, StackDrawType.Draw, tint, true);
-                }
+                Vector2 position = CalculateItemPosition(index, buttons.Count, center);
+                bool isSelected = (index == Game1.player.CurrentToolIndex);
+                DrawItem(b, item, position, isSelected);
             }
+
             base.draw(b);
         }
     }
