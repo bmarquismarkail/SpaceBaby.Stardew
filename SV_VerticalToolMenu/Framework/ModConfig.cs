@@ -1,4 +1,4 @@
-﻿namespace SB_VerticalToolMenu.Framework
+﻿namespace VerticalToolbar.Framework
 {
     /// <summary>The mod configuration model.</summary>
     internal class ModConfig

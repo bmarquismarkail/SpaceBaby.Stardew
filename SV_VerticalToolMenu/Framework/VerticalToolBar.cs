@@ -8,7 +8,7 @@ using StardewValley;
 using StardewValley.Menus;
 using SObject = StardewValley.Object;
 
-namespace SB_VerticalToolMenu.Framework
+namespace VerticalToolbar.Framework
 {
     public enum Orientation
     {

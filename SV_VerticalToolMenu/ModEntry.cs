@@ -5,16 +5,16 @@ using StardewValley;
 using StardewValley.Menus;
 using System.Collections.Generic;
 using System.Linq;
-using SB_VerticalToolMenu.Framework;
+using VerticalToolbar.Framework;
 
-namespace SB_VerticalToolMenu
+namespace VerticalToolbar
 {
     internal class ModEntry : Mod
     {
         /// <summary>The mod configuration.</summary>
         private ModConfig Config;
         private VerticalToolBar verticalToolbar;
-        SB_VerticalToolMenu.Framework.Orientation Orientation;
+        VerticalToolbar.Framework.Orientation Orientation;
         private bool isInitiated, modOverride;
         private int currentToolIndex;
         private int scrolling;

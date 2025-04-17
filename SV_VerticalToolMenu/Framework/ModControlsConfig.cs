@@ -1,6 +1,6 @@
 using StardewModdingAPI;
 
-namespace SB_VerticalToolMenu
+namespace VerticalToolbar.Framework
 {
     /// <summary>The mod configuration model for input bindings.</summary>
     internal class ModControlsConfig
@@ -30,7 +30,7 @@ namespace SB_VerticalToolMenu
         public SButton ScrollRight { get; set; } = SButton.RightTrigger;
 
         /// <summary> Sets the orientation of the vertical toolbar</summary>
-        public SB_VerticalToolMenu.Framework.Orientation Orientation = Framework.Orientation.LeftOfToolbar;
+        public VerticalToolbar.Framework.Orientation Orientation = Framework.Orientation.LeftOfToolbar;
         //
     }
 }

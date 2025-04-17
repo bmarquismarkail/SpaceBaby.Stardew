@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SB_VerticalToolMenu.Framework
+namespace VerticalToolbar.Framework
 {
     internal class ModInventoryPage : StardewValley.Menus.InventoryPage
     {
