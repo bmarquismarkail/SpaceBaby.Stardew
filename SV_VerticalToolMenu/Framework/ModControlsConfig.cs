@@ -31,6 +31,5 @@ namespace VerticalToolbar.Framework
 
         /// <summary> Sets the orientation of the vertical toolbar</summary>
         public VerticalToolbar.Framework.Orientation Orientation = Framework.Orientation.LeftOfToolbar;
-        //
     }
 }
