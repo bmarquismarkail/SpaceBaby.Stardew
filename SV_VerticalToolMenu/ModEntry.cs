@@ -28,9 +28,9 @@ namespace VerticalToolbar
         {
             Config = helper.ReadConfig<ModConfig>();
 
-            helper.Events.GameLoop.SaveLoaded += onSaveLoaded;
+            helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.UpdateTicked += onUpdateTicked;
-            helper.Events.Input.MouseWheelScrolled += onMouseWheelScrolled;
+            helper.Events.Input.MouseWheelScrolled += OnMouseWheelScrolled;
             helper.Events.Input.ButtonPressed += onButtonPressed;
             helper.Events.Input.ButtonReleased += onButtonReleased;
             helper.Events.Display.MenuChanged += onMenuChanged;
@@ -54,68 +54,85 @@ namespace VerticalToolbar
             if (!isInitiated)
                 return;
 
-            // check input modifier
-            var input = this.Helper.Input;
+            HandleInputModifier();
+            UpdateCurrentTool();
+            HandlePolling();
+        }
+
+        private void HandleInputModifier()
+        {
             modOverride = false;
-            if (!Game1.player.UsingTool && input.IsDown(Config.Controls.HoldToActivateSlotKeys))
-            {
-                if (input.IsDown(Config.Controls.ChooseSlot1))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[0].name);
-                else if (input.IsDown(Config.Controls.ChooseSlot2))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[1].name);
-                else if (input.IsDown(Config.Controls.ChooseSlot3))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[2].name);
-                else if (input.IsDown(Config.Controls.ChooseSlot4))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[3].name);
-                else if (input.IsDown(Config.Controls.ChooseSlot5))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[4].name);
 
-                modOverride = true;
-            }
-
-            // check current tool
-            if (verticalToolbar.numToolsInToolbar > 0 && Game1.player.CurrentToolIndex != currentToolIndex)
+            if (!Game1.player.UsingTool && this.Helper.Input.IsDown(Config.Controls.HoldToActivateSlotKeys))
             {
-                if (modOverride || (triggerPolling < 300))
+                for (int i = 0; i < 5; i++) // Limit to 1-5 slots
                 {
-                    Game1.player.CurrentToolIndex = currentToolIndex;
-                    modOverride = false;
+                    if (this.Helper.Input.IsDown(Config.Controls.HoldToActivateSlotKeys) && this.Helper.Input.IsDown((SButton)((int)SButton.D1 + i)))
+                    {
+                        currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[i].name);
+                        modOverride = true;
+                        break;
+                    }
                 }
             }
+        }
 
-            // check polling
-            if (verticalToolbar.numToolsInToolbar > 0)
+        private void UpdateCurrentTool()
+        {
+            if (verticalToolbar.numToolsInToolbar > 0 && Game1.player.CurrentToolIndex != currentToolIndex && (modOverride || (triggerPolling < 300)))
             {
-                if (scrolling != 0)
-                {
-                    if (!input.IsDown(this.Config.Controls.ScrollLeft) && !input.IsDown(this.Config.Controls.ScrollRight))
-                    {
-                        scrolling = 0;
-                        return;
-                    }
-                    Game1.player.CurrentToolIndex = currentToolIndex;
-                    int elapsedGameTime = Game1.currentGameTime.ElapsedGameTime.Milliseconds;
-                    this.triggerPolling -= elapsedGameTime;
-                    if (this.triggerPolling <= 0 && !modOverride)
-                    {
-                        Game1.player.CurrentToolIndex = currentToolIndex;
-                        this.triggerPolling = 100;
-                        checkHoveredItem(scrolling);
-                    }
-                }
-                else if (released < 300)
-                {
-                    Game1.player.CurrentToolIndex = currentToolIndex;
-                    int polling = this.released;
-                    int elapsedGameTime = Game1.currentGameTime.ElapsedGameTime.Milliseconds;
-                    this.released = polling + elapsedGameTime;
-                    if (released > 300 && !modOverride)
-                    {
-                        Game1.player.CurrentToolIndex = currentToolIndex;
-                        released = 300;
-                    }
+                Game1.player.CurrentToolIndex = currentToolIndex;
+                modOverride = false;
+            }
+        }
 
-                }
+        private void HandlePolling()
+        {
+            if (verticalToolbar.numToolsInToolbar <= 0)
+                return;
+
+            var input = this.Helper.Input;
+
+            if (scrolling != 0)
+            {
+                HandleScrolling(input);
+            }
+            else if (released < 300)
+            {
+                HandleRelease();
+            }
+        }
+
+        private void HandleScrolling(IInputHelper input)
+        {
+            if (!input.IsDown(this.Config.Controls.ScrollLeft) && !input.IsDown(this.Config.Controls.ScrollRight))
+            {
+                scrolling = 0;
+                return;
+            }
+
+            Game1.player.CurrentToolIndex = currentToolIndex;
+            int elapsedGameTime = Game1.currentGameTime.ElapsedGameTime.Milliseconds;
+            this.triggerPolling -= elapsedGameTime;
+
+            if (this.triggerPolling <= 0 && !modOverride)
+            {
+                Game1.player.CurrentToolIndex = currentToolIndex;
+                this.triggerPolling = 100;
+                CheckHoveredItem(scrolling);
+            }
+        }
+
+        private void HandleRelease()
+        {
+            Game1.player.CurrentToolIndex = currentToolIndex;
+            int elapsedGameTime = Game1.currentGameTime.ElapsedGameTime.Milliseconds;
+            this.released += elapsedGameTime;
+
+            if (released > 300 && !modOverride)
+            {
+                Game1.player.CurrentToolIndex = currentToolIndex;
+                released = 300;
             }
         }
 
@@ -133,7 +150,7 @@ namespace VerticalToolbar
                 this.Helper.Input.Suppress(e.Button);
                 Game1.player.CurrentToolIndex = currentToolIndex;
                 int num = e.Button == this.Config.Controls.ScrollLeft ? -1 : 1;
-                checkHoveredItem(num);
+                CheckHoveredItem(num);
                 scrolling = num;
             }
 
@@ -175,63 +192,86 @@ namespace VerticalToolbar
             }
         }
 
-        private void checkHoveredItem(int num)
+        private void CheckHoveredItem(int num)
         {
             int MAXcurrentToolIndex = 11;
 
-            if (!(!Game1.player.UsingTool && !Game1.dialogueUp && ((Game1.player.CurrentTool is StardewValley.Tools.Pickaxe || Game1.player.CanMove) && (Game1.player.Items.CountItemStacks() != 0 && !Game1.eventUp)))) return;
+            if (!IsValidState()) return;
+
             if (Game1.options.invertScrollDirection)
                 num *= -1;
 
+            AdjustToolIndex(num, MAXcurrentToolIndex);
+            modOverride = true;
+        }
+
+        private static bool IsValidState()
+        {
+            return !Game1.player.UsingTool && !Game1.dialogueUp &&
+                   ((Game1.player.CurrentTool is StardewValley.Tools.Pickaxe || Game1.player.CanMove) &&
+                   (Game1.player.Items.CountItemStacks() != 0 && !Game1.eventUp));
+        }
+
+        private void AdjustToolIndex(int num, int maxIndex)
+        {
             while (true)
             {
                 currentToolIndex += num;
+
                 if (num < 0)
                 {
-                    if (currentToolIndex < 0)
-                    {
-                        currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[verticalToolbar.numToolsInToolbar - 1].name);
-                    }
-                    else if (currentToolIndex > MAXcurrentToolIndex && currentToolIndex < Convert.ToInt32(verticalToolbar.buttons[0].name))
-                    {
-                        currentToolIndex = MAXcurrentToolIndex;
-                    }
-
+                    HandleNegativeScroll(maxIndex);
                 }
                 else if (num > 0)
                 {
-                    if (currentToolIndex > Convert.ToInt32(verticalToolbar.buttons[verticalToolbar.numToolsInToolbar - 1].name))
-                    {
-                        currentToolIndex = 0;
-                    }
-                    else if (currentToolIndex > MAXcurrentToolIndex && currentToolIndex < Convert.ToInt32(verticalToolbar.buttons[0].name))
-                    {
-                        currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[0].name);
-                    }
+                    HandlePositiveScroll(maxIndex);
                 }
 
                 if (Game1.player.Items[currentToolIndex] != null)
                     break;
             }
-            modOverride = true;
+        }
+
+        private void HandleNegativeScroll(int maxIndex)
+        {
+            if (currentToolIndex < 0)
+            {
+                currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[verticalToolbar.numToolsInToolbar - 1].name);
+            }
+            else if (currentToolIndex > maxIndex && currentToolIndex < Convert.ToInt32(verticalToolbar.buttons[0].name))
+            {
+                currentToolIndex = maxIndex;
+            }
+        }
+
+        private void HandlePositiveScroll(int maxIndex)
+        {
+            if (currentToolIndex > Convert.ToInt32(verticalToolbar.buttons[verticalToolbar.numToolsInToolbar - 1].name))
+            {
+                currentToolIndex = 0;
+            }
+            else if (currentToolIndex > maxIndex && currentToolIndex < Convert.ToInt32(verticalToolbar.buttons[0].name))
+            {
+                currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[0].name);
+            }
         }
 
         /// <summary>Raised after the player scrolls the mouse wheel.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onMouseWheelScrolled(object sender, MouseWheelScrolledEventArgs e)
+        private void OnMouseWheelScrolled(object sender, MouseWheelScrolledEventArgs e)
         {
             if (!isInitiated)
                 return;
 
             if (verticalToolbar.numToolsInToolbar > 0)
-                checkHoveredItem(e.Delta > 0 ? 1 : -1);
+                CheckHoveredItem(e.Delta > 0 ? 1 : -1);
         }
 
         /// <summary>Raised after the player loads a save slot and the world is initialised.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onSaveLoaded(object sender, SaveLoadedEventArgs e)
+        private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             baseMaxItems = Game1.player.MaxItems;
             verticalToolbar = new VerticalToolBar(this.Orientation);
@@ -253,7 +293,7 @@ namespace VerticalToolbar
             {
                 List<Item> range = Game1.player.Items.ToList().GetRange(12,baseMaxItems - 12);
                 range.AddRange(Game1.player.Items.ToList().GetRange(0, 12));
-                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
+                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, 5));
                 Game1.player.setInventory(range);
             }
             else
@@ -261,7 +301,7 @@ namespace VerticalToolbar
                 List<Item> range = Game1.player.Items.ToList().GetRange(baseMaxItems - 12, 12);
                 for (int index = 0; index < baseMaxItems - 12; ++index)
                     range.Add(Game1.player.Items[index]);
-                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
+                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, 5));
                 Game1.player.setInventory(range);
             }
             Game1.player.netItemStowed.Set(false);
@@ -269,9 +309,9 @@ namespace VerticalToolbar
                 Game1.player.CurrentItem.actionWhenBeingHeld(Game1.player);
             for (int index = 0; index < Game1.onScreenMenus.Count; ++index)
             {
-                if (Game1.onScreenMenus[index] is Toolbar)
+                if (Game1.onScreenMenus[index] is Toolbar toolbar)
                 {
-                    (Game1.onScreenMenus[index] as Toolbar).shifted(right);
+                    toolbar.shifted(right);
                     break;
                 }
             }
