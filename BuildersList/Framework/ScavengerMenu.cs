@@ -18,7 +18,7 @@ namespace SpaceBaby.BuildersList
         public StardewModdingAPI.IReflectionHelper Reflection;
         public bool iscooking, recipeListNeedsUpdate;
         private ClickableComponent button;
-        private Rectangle initalPosition;
+        private Rectangle initialPosition;
 
         public ScavengerMenu(
         Item lastScavengerItem,
@@ -26,11 +26,11 @@ namespace SpaceBaby.BuildersList
       : base(IClickableMenu.spaceToClearSideBorder, Game1.viewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder, Game1.tileSize, Game1.tileSize, false)
         {
             this.Reflection = reflection;
-            initalPosition = new Rectangle(this.xPositionOnScreen, this.yPositionOnScreen, this.width, this.height);
+            initialPosition = new Rectangle(this.xPositionOnScreen, this.yPositionOnScreen, this.width, this.height);
             if (ScavengerRecipe == null)
-                button = new ClickableComponent(initalPosition, "");
+                button = new ClickableComponent(initialPosition, "");
             //until I can populate the recipe, button is still this
-            button = new ClickableComponent(initalPosition, "");
+            button = new ClickableComponent(initialPosition, "");
             currentRecipeList = new Dictionary<string, int>();
         }
         private void getRecipeList(StardewModdingAPI.IReflectionHelper reflection)
@@ -41,15 +41,15 @@ namespace SpaceBaby.BuildersList
 
         public void getDimensions()
         {
-            initalPosition.X = IClickableMenu.spaceToClearSideBorder;
-            initalPosition.Y = Game1.viewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder;
+            initialPosition.X = IClickableMenu.spaceToClearSideBorder;
+            initialPosition.Y = Game1.viewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder;
 
             if (ScavengerRecipe == null)
             {
-                this.xPositionOnScreen = initalPosition.X;
-                this.yPositionOnScreen = initalPosition.Y;
-                this.width = initalPosition.Width;
-                this.height = initalPosition.Height;
+                this.xPositionOnScreen = initialPosition.X;
+                this.yPositionOnScreen = initialPosition.Y;
+                this.width = initialPosition.Width;
+                this.height = initialPosition.Height;
             }
             else
             {
@@ -59,8 +59,8 @@ namespace SpaceBaby.BuildersList
 
                 this.width = (int)Math.Max((float)(double)vector2_1.X + 12.0, 320f);
                 this.height = this.getDescriptionHeight(this.width);
-                this.xPositionOnScreen = initalPosition.X;
-                this.yPositionOnScreen = initalPosition.Y - this.height;
+                this.xPositionOnScreen = initialPosition.X;
+                this.yPositionOnScreen = initialPosition.Y - this.height;
             }
         }
         //Draws a box to put the item in the scavenger menu if none is already there, else draws the recipe text.
