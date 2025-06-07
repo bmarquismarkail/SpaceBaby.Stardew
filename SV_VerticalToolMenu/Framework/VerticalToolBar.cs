@@ -40,14 +40,15 @@ namespace VerticalToolbar.Framework
             orientation = o;
             NUM_BUTTONS = numButtons;
             this.forceDraw = forceDraw;
-            verticalItems = Game1.player.Items;
-            getDimensions();
-            // For compatibility with Bigger Backpack
-            int newInventory = baseMaxItems + VerticalToolBar.NUM_BUTTONS;
-            for (int count = verticalItems.Count; count < newInventory; count++)
-            {
+            verticalItems = new Inventory();
+            for (int i = 0; i < NUM_BUTTONS; i++)
                 verticalItems.Add(null);
-            }
+            getDimensions();
+            int requiredCount = baseMaxItems + NUM_BUTTONS;
+            for (int count = Game1.player.Items.Count; count < requiredCount; count++)
+                Game1.player.Items.Add(null);
+            for (int i = 0; i < NUM_BUTTONS; i++)
+                verticalItems[i] = Game1.player.Items[baseMaxItems + i];
 
             for (int index = 0; index < NUM_BUTTONS; ++index)
             {
@@ -127,60 +128,63 @@ namespace VerticalToolbar.Framework
             foreach (ClickableComponent button in this.buttons)
             {
                 int int32 = Convert.ToInt32(button.name);
+                int toolbarIndex = int32 - baseMaxItems;
                 int x1 = x;
                 int y1 = y;
-                if (button.containsPoint(x1, y1) && verticalItems[int32] != null)
+                if (toolbarIndex >= 0 && toolbarIndex < NUM_BUTTONS && button.containsPoint(x1, y1) && verticalItems[toolbarIndex] != null)
                 {
-                    if (verticalItems[int32] is Tool && (toAddTo == null || toAddTo is SObject) && (verticalItems[int32] as Tool).canThisBeAttached((SObject)toAddTo))
-                        return (verticalItems[int32] as Tool).attach((SObject)toAddTo);
+                    if (verticalItems[toolbarIndex] is Tool && (toAddTo == null || toAddTo is SObject) && (verticalItems[toolbarIndex] as Tool).canThisBeAttached((SObject)toAddTo))
+                        return (verticalItems[toolbarIndex] as Tool).attach((SObject)toAddTo);
                     if (toAddTo == null)
                     {
-                        if (verticalItems[int32].maximumStackSize() != -1)
+                        if (verticalItems[toolbarIndex].maximumStackSize() != -1)
                         {
-                            if (int32 == Game1.player.CurrentToolIndex && verticalItems[int32] != null && verticalItems[int32].Stack == 1)
-                                verticalItems[int32].actionWhenStopBeingHeld(Game1.player);
-                            Item one = verticalItems[int32].getOne();
-                            if (verticalItems[int32].Stack > 1)
+                            if (int32 == Game1.player.CurrentToolIndex && verticalItems[toolbarIndex] != null && verticalItems[toolbarIndex].Stack == 1)
+                                verticalItems[toolbarIndex].actionWhenStopBeingHeld(Game1.player);
+                            Item one = verticalItems[toolbarIndex].getOne();
+                            if (verticalItems[toolbarIndex].Stack > 1)
                             {
                                 if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, new[] { new InputButton(Keys.LeftShift) }))
                                 {
-                                    one.Stack = (int)Math.Ceiling(verticalItems[int32].Stack / 2.0);
-                                    verticalItems[int32].Stack = verticalItems[int32].Stack / 2;
+                                    one.Stack = (int)Math.Ceiling(verticalItems[toolbarIndex].Stack / 2.0);
+                                    verticalItems[toolbarIndex].Stack = verticalItems[toolbarIndex].Stack / 2;
                                     goto label_15;
                                 }
                             }
-                            if (verticalItems[int32].Stack == 1)
-                                verticalItems[int32] = null;
+                            if (verticalItems[toolbarIndex].Stack == 1)
+                                verticalItems[toolbarIndex] = null;
                             else
-                                --verticalItems[int32].Stack;
+                                --verticalItems[toolbarIndex].Stack;
                             label_15:
-                            if (verticalItems[int32] != null && verticalItems[int32].Stack <= 0)
-                                verticalItems[int32] = null;
+                            if (verticalItems[toolbarIndex] != null && verticalItems[toolbarIndex].Stack <= 0)
+                                verticalItems[toolbarIndex] = null;
                             if (playSound)
                                 Game1.playSound("dwop");
+                            Game1.player.Items[baseMaxItems + toolbarIndex] = verticalItems[toolbarIndex];
                             return one;
                         }
                     }
-                    else if (verticalItems[int32].canStackWith(toAddTo) && toAddTo.Stack < toAddTo.maximumStackSize())
+                    else if (verticalItems[toolbarIndex].canStackWith(toAddTo) && toAddTo.Stack < toAddTo.maximumStackSize())
                     {
                         if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, new[] { new InputButton(Keys.LeftShift) }))
                         {
-                            toAddTo.Stack += (int)Math.Ceiling(verticalItems[int32].Stack / 2.0);
-                            verticalItems[int32].Stack = verticalItems[int32].Stack / 2;
+                            toAddTo.Stack += (int)Math.Ceiling(verticalItems[toolbarIndex].Stack / 2.0);
+                            verticalItems[toolbarIndex].Stack = verticalItems[toolbarIndex].Stack / 2;
                         }
                         else
                         {
                             ++toAddTo.Stack;
-                            --verticalItems[int32].Stack;
+                            --verticalItems[toolbarIndex].Stack;
                         }
                         if (playSound)
                             Game1.playSound("dwop");
-                        if (verticalItems[int32].Stack <= 0)
+                        if (verticalItems[toolbarIndex].Stack <= 0)
                         {
                             if (int32 == Game1.player.CurrentToolIndex)
-                                verticalItems[int32].actionWhenStopBeingHeld(Game1.player);
-                            verticalItems[int32] = null;
+                                verticalItems[toolbarIndex].actionWhenStopBeingHeld(Game1.player);
+                            verticalItems[toolbarIndex] = null;
                         }
+                        Game1.player.Items[baseMaxItems + toolbarIndex] = verticalItems[toolbarIndex];
                         return toAddTo;
                     }
                 }
@@ -196,11 +200,12 @@ namespace VerticalToolbar.Framework
                 if (button.containsPoint(x, y))
                 {
                     int int32 = Convert.ToInt32(button.name);
-                    if (int32 < verticalItems.Count && verticalItems[int32] != null)
+                    int index = int32 - baseMaxItems;
+                    if (index >= 0 && index < NUM_BUTTONS && verticalItems[index] != null)
                     {
                         button.scale = Math.Min(button.scale + 0.05f, 1.1f);
-                        this.hoverTitle = verticalItems[int32].Name;
-                        this.hoverItem = verticalItems[int32];
+                        this.hoverTitle = verticalItems[index].Name;
+                        this.hoverItem = verticalItems[index];
                     }
                 }
                 else
@@ -226,23 +231,20 @@ namespace VerticalToolbar.Framework
         {
             if (baseMaxItems != Game1.player.MaxItems)
             {
-                var newInventory = Game1.player.MaxItems;
-                if (verticalItems.Count < (newInventory + NUM_BUTTONS) )
-                {
-                    for (int i = verticalItems.Count; i < (newInventory + NUM_BUTTONS); i++)
-                        verticalItems.Add(null);
-                }
-                for (int i= 0; i< NUM_BUTTONS; i++)
+                int newInventory = Game1.player.MaxItems;
+                int requiredCount = newInventory + NUM_BUTTONS;
+                for (int i = Game1.player.Items.Count; i < requiredCount; i++)
+                    Game1.player.Items.Add(null);
+                for (int i = 0; i < NUM_BUTTONS; i++)
                 {
                     this.buttons[i].name = string.Concat(i + newInventory);
-                    verticalItems[newInventory + i] = verticalItems[baseMaxItems + i];
-                    verticalItems[baseMaxItems + i] = null;
+                    Game1.player.Items[newInventory + i] = verticalItems[i];
+                    Game1.player.Items[baseMaxItems + i] = null;
                 }
-                if (Game1.player.CurrentToolIndex > (baseMaxItems -1) )
+                if (Game1.player.CurrentToolIndex > (baseMaxItems - 1))
                     Game1.player.CurrentToolIndex += (newInventory - baseMaxItems);
 
                 baseMaxItems = newInventory;
-                verticalItems = Game1.player.Items;
             }
         }
 
@@ -318,11 +320,11 @@ namespace VerticalToolbar.Framework
                 b.Draw(Game1.menuTexture, location, new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 56 : 10)), Color.White * transparency);
                 // Need to customize it for toolset //string text = index == 9 ? "0" : (index == 10 ? "-" : (index == 11 ? "=" : string.Concat((object)(index + 1))));
                 //b.DrawString(Game1.tinyFont, text, position + new Vector2(4f, -8f), Color.DimGray * this.transparency);
-                if (verticalItems.Count <= (index + baseMaxItems) || verticalItems.ElementAt<Item>((index + baseMaxItems)) == null)
+                if (verticalItems[index] == null)
                 {
                     continue;
                 }
-                verticalItems[(index + baseMaxItems)].drawInMenu(b, location, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
+                verticalItems[index].drawInMenu(b, location, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
                 toolBarIndex++;
             }
             if (toolBarIndex != numToolsInToolbar)
