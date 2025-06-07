@@ -3,6 +3,7 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
+using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using System.Linq;
 using VerticalToolbar.Framework;
@@ -43,6 +44,11 @@ namespace VerticalToolbar
         private void onReturnToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             isInitiated = false;
+            if (verticalToolbar != null)
+            {
+                Game1.onScreenMenus.Remove(verticalToolbar);
+                verticalToolbar = null;
+            }
         }
 
         /// <summary>Raised after the game state is updated (???60 times per second).</summary>
@@ -177,7 +183,31 @@ namespace VerticalToolbar
             {
                 List<IClickableMenu> pages = this.Helper.Reflection.GetField<List<IClickableMenu>>(menu, "pages").GetValue();
                 pages.RemoveAt(0);
-                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height));
+                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height, verticalToolbar));
+                verticalToolbar.forceDraw = true;
+                verticalToolbar.xPositionOnScreen = menu.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2;
+                verticalToolbar.yPositionOnScreen = menu.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4;
+                for (int index = 0; index < VerticalToolBar.NUM_BUTTONS; ++index)
+                {
+                    verticalToolbar.buttons[index].bounds = new Rectangle(
+                        verticalToolbar.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
+                        verticalToolbar.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
+                        Game1.tileSize,
+                        Game1.tileSize);
+                }
+            }
+            else if (e.OldMenu is GameMenu && verticalToolbar != null)
+            {
+                verticalToolbar.forceDraw = false;
+                verticalToolbar.getDimensions();
+                for (int index = 0; index < VerticalToolBar.NUM_BUTTONS; ++index)
+                {
+                    verticalToolbar.buttons[index].bounds = new Rectangle(
+                        verticalToolbar.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
+                        verticalToolbar.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
+                        Game1.tileSize,
+                        Game1.tileSize);
+                }
             }
         }
 
