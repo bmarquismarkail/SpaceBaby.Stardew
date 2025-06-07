@@ -30,7 +30,7 @@ namespace VerticalToolbar.Framework
         public int numToolsInToolbar = 0;
         private Item hoverItem;
         public bool forceDraw = false;
-        private int baseMaxItems = Game1.player.MaxItems;
+        private int numItems = Game1.player.MaxItems;
         private Inventory verticalItems;
 
         public VerticalToolBar(Orientation o, int numButtons = 5, bool forceDraw = false)
@@ -44,11 +44,6 @@ namespace VerticalToolbar.Framework
             for (int i = 0; i < NUM_BUTTONS; i++)
                 verticalItems.Add(null);
             getDimensions();
-            int requiredCount = baseMaxItems + NUM_BUTTONS;
-            for (int count = Game1.player.Items.Count; count < requiredCount; count++)
-                Game1.player.Items.Add(null);
-            for (int i = 0; i < NUM_BUTTONS; i++)
-                verticalItems[i] = Game1.player.Items[baseMaxItems + i];
 
             for (int index = 0; index < NUM_BUTTONS; ++index)
             {
@@ -59,7 +54,7 @@ namespace VerticalToolbar.Framework
                             this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
                             Game1.tileSize, 
                             Game1.tileSize),
-                        string.Concat(index + baseMaxItems)));
+                        string.Concat(index))); 
             }
         }
 
@@ -109,7 +104,7 @@ namespace VerticalToolbar.Framework
             {
                 if (button.containsPoint(x, y))
                 {
-                    Game1.player.CurrentToolIndex = Convert.ToInt32(button.name);
+                    Game1.player.CurrentToolIndex = Convert.ToInt32(button.name) + numItems;
                     if (Game1.player.ActiveObject != null)
                     {
                         Game1.player.showCarrying();
@@ -128,7 +123,7 @@ namespace VerticalToolbar.Framework
             foreach (ClickableComponent button in this.buttons)
             {
                 int int32 = Convert.ToInt32(button.name);
-                int toolbarIndex = int32 - baseMaxItems;
+                int toolbarIndex = int32;
                 int x1 = x;
                 int y1 = y;
                 if (toolbarIndex >= 0 && toolbarIndex < NUM_BUTTONS && button.containsPoint(x1, y1) && verticalItems[toolbarIndex] != null)
@@ -139,7 +134,7 @@ namespace VerticalToolbar.Framework
                     {
                         if (verticalItems[toolbarIndex].maximumStackSize() != -1)
                         {
-                            if (int32 == Game1.player.CurrentToolIndex && verticalItems[toolbarIndex] != null && verticalItems[toolbarIndex].Stack == 1)
+                            if (int32 + numItems == Game1.player.CurrentToolIndex && verticalItems[toolbarIndex] != null && verticalItems[toolbarIndex].Stack == 1)
                                 verticalItems[toolbarIndex].actionWhenStopBeingHeld(Game1.player);
                             Item one = verticalItems[toolbarIndex].getOne();
                             if (verticalItems[toolbarIndex].Stack > 1)
@@ -160,7 +155,7 @@ namespace VerticalToolbar.Framework
                                 verticalItems[toolbarIndex] = null;
                             if (playSound)
                                 Game1.playSound("dwop");
-                            Game1.player.Items[baseMaxItems + toolbarIndex] = verticalItems[toolbarIndex];
+                            Game1.player.Items[numItems + toolbarIndex] = verticalItems[toolbarIndex];
                             return one;
                         }
                     }
@@ -180,11 +175,11 @@ namespace VerticalToolbar.Framework
                             Game1.playSound("dwop");
                         if (verticalItems[toolbarIndex].Stack <= 0)
                         {
-                            if (int32 == Game1.player.CurrentToolIndex)
+                            if (int32 + numItems == Game1.player.CurrentToolIndex)
                                 verticalItems[toolbarIndex].actionWhenStopBeingHeld(Game1.player);
                             verticalItems[toolbarIndex] = null;
                         }
-                        Game1.player.Items[baseMaxItems + toolbarIndex] = verticalItems[toolbarIndex];
+                        Game1.player.Items[numItems + toolbarIndex] = verticalItems[toolbarIndex];
                         return toAddTo;
                     }
                 }
@@ -200,7 +195,7 @@ namespace VerticalToolbar.Framework
                 if (button.containsPoint(x, y))
                 {
                     int int32 = Convert.ToInt32(button.name);
-                    int index = int32 - baseMaxItems;
+                    int index = int32;
                     if (index >= 0 && index < NUM_BUTTONS && verticalItems[index] != null)
                     {
                         button.scale = Math.Min(button.scale + 0.05f, 1.1f);
@@ -229,22 +224,13 @@ namespace VerticalToolbar.Framework
 
         public override void update(GameTime time)
         {
-            if (baseMaxItems != Game1.player.MaxItems)
+            if (numItems != Game1.player.MaxItems)
             {
                 int newInventory = Game1.player.MaxItems;
-                int requiredCount = newInventory + NUM_BUTTONS;
-                for (int i = Game1.player.Items.Count; i < requiredCount; i++)
-                    Game1.player.Items.Add(null);
                 for (int i = 0; i < NUM_BUTTONS; i++)
-                {
-                    this.buttons[i].name = string.Concat(i + newInventory);
-                    Game1.player.Items[newInventory + i] = verticalItems[i];
-                    Game1.player.Items[baseMaxItems + i] = null;
-                }
-                if (Game1.player.CurrentToolIndex > (baseMaxItems - 1))
-                    Game1.player.CurrentToolIndex += (newInventory - baseMaxItems);
+                    this.buttons[i].name = string.Concat(i);
 
-                baseMaxItems = newInventory;
+                numItems = newInventory;
             }
         }
 
@@ -317,14 +303,14 @@ namespace VerticalToolbar.Framework
                     //TODO: Use more reliable coordinates
                     this.buttons[index].bounds.X,
                     this.buttons[index].bounds.Y);
-                b.Draw(Game1.menuTexture, location, new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 56 : 10)), Color.White * transparency);
+                b.Draw(Game1.menuTexture, location, new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, Game1.player.CurrentToolIndex == (index + numItems) ? 56 : 10)), Color.White * transparency);
                 // Need to customize it for toolset //string text = index == 9 ? "0" : (index == 10 ? "-" : (index == 11 ? "=" : string.Concat((object)(index + 1))));
                 //b.DrawString(Game1.tinyFont, text, position + new Vector2(4f, -8f), Color.DimGray * this.transparency);
                 if (verticalItems[index] == null)
                 {
                     continue;
                 }
-                verticalItems[index].drawInMenu(b, location, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
+                verticalItems[index].drawInMenu(b, location, Game1.player.CurrentToolIndex == (index + numItems) ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
                 toolBarIndex++;
             }
             if (toolBarIndex != numToolsInToolbar)
