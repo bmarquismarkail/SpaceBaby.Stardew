@@ -20,7 +20,6 @@ namespace VerticalToolbar
         private int scrolling;
         private int triggerPolling = 300;
         private int released = 0;
-        private int baseMaxItems;
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -54,26 +53,30 @@ namespace VerticalToolbar
             if (!isInitiated)
                 return;
 
-            if (Game1.player.MaxItems != baseMaxItems)
-                baseMaxItems = Game1.player.MaxItems;
 
             // check input modifier
             var input = this.Helper.Input;
             modOverride = false;
             if (!Game1.player.UsingTool && input.IsDown(Config.Controls.HoldToActivateSlotKeys))
             {
+                int slot = -1;
                 if (input.IsDown(Config.Controls.ChooseSlot1))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[0].name);
+                    slot = 0;
                 else if (input.IsDown(Config.Controls.ChooseSlot2))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[1].name);
+                    slot = 1;
                 else if (input.IsDown(Config.Controls.ChooseSlot3))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[2].name);
+                    slot = 2;
                 else if (input.IsDown(Config.Controls.ChooseSlot4))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[3].name);
+                    slot = 3;
                 else if (input.IsDown(Config.Controls.ChooseSlot5))
-                    currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[4].name);
+                    slot = 4;
 
-                modOverride = true;
+                if (slot != -1)
+                {
+                    verticalToolbar.Activate(slot);
+                    currentToolIndex = verticalToolbar.PlayerSlotIndex;
+                    modOverride = true;
+                }
             }
 
             // check current tool
@@ -180,42 +183,26 @@ namespace VerticalToolbar
 
         private void checkHoveredItem(int num)
         {
-            int MAXcurrentToolIndex = 11;
-
             if (!(!Game1.player.UsingTool && !Game1.dialogueUp && ((Game1.player.CurrentTool is StardewValley.Tools.Pickaxe || Game1.player.CanMove) && (Game1.player.Items.CountItemStacks() != 0 && !Game1.eventUp)))) return;
             if (Game1.options.invertScrollDirection)
                 num *= -1;
 
-            while (true)
+            int slot = verticalToolbar.ActiveSlot;
+            if (slot == -1)
+                slot = 0;
+
+            do
             {
-                currentToolIndex += num;
-                if (num < 0)
-                {
-                    if (currentToolIndex < 0)
-                    {
-                        currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[verticalToolbar.numToolsInToolbar - 1].name);
-                    }
-                    else if (currentToolIndex > MAXcurrentToolIndex && currentToolIndex < Convert.ToInt32(verticalToolbar.buttons[0].name))
-                    {
-                        currentToolIndex = MAXcurrentToolIndex;
-                    }
-
-                }
-                else if (num > 0)
-                {
-                    if (currentToolIndex > Convert.ToInt32(verticalToolbar.buttons[verticalToolbar.numToolsInToolbar - 1].name))
-                    {
-                        currentToolIndex = 0;
-                    }
-                    else if (currentToolIndex > MAXcurrentToolIndex && currentToolIndex < Convert.ToInt32(verticalToolbar.buttons[0].name))
-                    {
-                        currentToolIndex = Convert.ToInt32(verticalToolbar.buttons[0].name);
-                    }
-                }
-
-                if (Game1.player.Items[currentToolIndex] != null)
-                    break;
+                slot += num;
+                if (slot < 0)
+                    slot = verticalToolbar.Items.Count - 1;
+                else if (slot >= verticalToolbar.Items.Count)
+                    slot = 0;
             }
+            while (verticalToolbar.Items[slot] == null);
+
+            verticalToolbar.Activate(slot);
+            currentToolIndex = verticalToolbar.PlayerSlotIndex;
             modOverride = true;
         }
 
@@ -236,7 +223,6 @@ namespace VerticalToolbar
         /// <param name="e">The event data.</param>
         private void onSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
-            baseMaxItems = Game1.player.MaxItems;
             verticalToolbar = new VerticalToolBar(this.Orientation);
             Game1.onScreenMenus.Add(verticalToolbar);
 
@@ -246,38 +232,7 @@ namespace VerticalToolbar
 
         private void ModShiftToolbar(bool right)
         {
-            // This is simply shiftToolbar, but modified to not use NetCode, and taking to account the vertical toolbar
-            if (Game1.player.Items == null || Game1.player.Items.Count < 12 || (Game1.player.UsingTool || Game1.dialogueUp) || (Game1.player.CurrentTool is not StardewValley.Tools.Pickaxe && !Game1.player.CanMove || (Game1.player.Items.CountItemStacks() == 0 || Game1.eventUp)) || Game1.farmEvent != null)
-                return;
-            Game1.playSound("shwip");
-            if (Game1.player.CurrentItem != null)
-                Game1.player.CurrentItem.actionWhenStopBeingHeld(Game1.player);
-            if (right)
-            {
-                List<Item> range = Game1.player.Items.ToList().GetRange(12,baseMaxItems - 12);
-                range.AddRange(Game1.player.Items.ToList().GetRange(0, 12));
-                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
-                Game1.player.setInventory(range);
-            }
-            else
-            {
-                List<Item> range = Game1.player.Items.ToList().GetRange(baseMaxItems - 12, 12);
-                for (int index = 0; index < baseMaxItems - 12; ++index)
-                    range.Add(Game1.player.Items[index]);
-                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
-                Game1.player.setInventory(range);
-            }
-            Game1.player.netItemStowed.Set(false);
-            if (Game1.player.CurrentItem != null)
-                Game1.player.CurrentItem.actionWhenBeingHeld(Game1.player);
-            for (int index = 0; index < Game1.onScreenMenus.Count; ++index)
-            {
-                if (Game1.onScreenMenus[index] is Toolbar)
-                {
-                    (Game1.onScreenMenus[index] as Toolbar).shifted(right);
-                    break;
-                }
-            }
+            Game1.player.shiftToolbar(right);
         }
     }
 }
