@@ -29,7 +29,7 @@ namespace VerticalToolbar.Framework
         public int numToolsInToolbar = 0;
         private Item hoverItem;
         public bool forceDraw = false;
-        private int baseMaxItems = Game1.player.MaxItems;
+        private int baseIndex;
 
         public VerticalToolBar(Orientation o, int numButtons = 5, bool forceDraw = false)
             : base()
@@ -39,12 +39,10 @@ namespace VerticalToolbar.Framework
             NUM_BUTTONS = numButtons;
             this.forceDraw = forceDraw;
             getDimensions();
-            // For compatibility with Bigger Backpack
-            int newInventory = baseMaxItems + VerticalToolBar.NUM_BUTTONS;
-            for (int count = Game1.player.Items.Count; count < newInventory; count++)
-            {
+
+            baseIndex = Game1.player.Items.Count;
+            for (int i = 0; i < NUM_BUTTONS; i++)
                 Game1.player.Items.Add(null);
-            }
 
             for (int index = 0; index < NUM_BUTTONS; ++index)
             {
@@ -53,9 +51,9 @@ namespace VerticalToolbar.Framework
                         new Rectangle(
                             this.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
                             this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
-                            Game1.tileSize, 
+                            Game1.tileSize,
                             Game1.tileSize),
-                        string.Concat(index + baseMaxItems)));
+                        string.Concat(index + baseIndex)));
             }
         }
 
@@ -221,24 +219,12 @@ namespace VerticalToolbar.Framework
 
         public override void update(GameTime time)
         {
-            if (baseMaxItems != Game1.player.MaxItems)
+            int expectedIndex = Game1.player.Items.Count - NUM_BUTTONS;
+            if (expectedIndex != baseIndex)
             {
-                var newInventory = Game1.player.MaxItems;
-                if (Game1.player.Items.Count() < (newInventory + NUM_BUTTONS) )
-                {
-                    for (int i = Game1.player.Items.Count(); i < (newInventory + NUM_BUTTONS); i++)
-                        Game1.player.Items.Add(null);
-                }
-                for (int i= 0; i< NUM_BUTTONS; i++)
-                {
-                    this.buttons[i].name = string.Concat(i + newInventory);
-                    Game1.player.Items[newInventory + i] = Game1.player.Items[baseMaxItems + i];
-                    Game1.player.Items[baseMaxItems + i] = null;
-                }
-                if (Game1.player.CurrentToolIndex > (baseMaxItems -1) )
-                    Game1.player.CurrentToolIndex += (newInventory - baseMaxItems);
-
-                baseMaxItems = newInventory;
+                baseIndex = expectedIndex;
+                for (int i = 0; i < NUM_BUTTONS; i++)
+                    this.buttons[i].name = string.Concat(baseIndex + i);
             }
         }
 
@@ -311,14 +297,14 @@ namespace VerticalToolbar.Framework
                     //TODO: Use more reliable coordinates
                     this.buttons[index].bounds.X,
                     this.buttons[index].bounds.Y);
-                b.Draw(Game1.menuTexture, location, new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 56 : 10)), Color.White * transparency);
+                b.Draw(Game1.menuTexture, location, new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, Game1.player.CurrentToolIndex == (index + baseIndex) ? 56 : 10)), Color.White * transparency);
                 // Need to customize it for toolset //string text = index == 9 ? "0" : (index == 10 ? "-" : (index == 11 ? "=" : string.Concat((object)(index + 1))));
                 //b.DrawString(Game1.tinyFont, text, position + new Vector2(4f, -8f), Color.DimGray * this.transparency);
-                if (Game1.player.Items.Count <= (index + baseMaxItems) || Game1.player.Items.ElementAt<Item>((index + baseMaxItems)) == null)
+                if (Game1.player.Items.Count <= (index + baseIndex) || Game1.player.Items.ElementAt<Item>((index + baseIndex)) == null)
                 {
                     continue;
                 }
-                Game1.player.Items[(index + baseMaxItems)].drawInMenu(b, location, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
+                Game1.player.Items[(index + baseIndex)].drawInMenu(b, location, Game1.player.CurrentToolIndex == (index + baseIndex) ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
                 toolBarIndex++;
             }
             if (toolBarIndex != numToolsInToolbar)

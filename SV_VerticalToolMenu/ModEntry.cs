@@ -54,6 +54,9 @@ namespace VerticalToolbar
             if (!isInitiated)
                 return;
 
+            if (Game1.player.MaxItems != baseMaxItems)
+                baseMaxItems = Game1.player.MaxItems;
+
             // check input modifier
             var input = this.Helper.Input;
             modOverride = false;
