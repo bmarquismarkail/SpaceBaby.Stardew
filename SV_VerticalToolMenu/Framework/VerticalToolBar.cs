@@ -33,6 +33,21 @@ namespace VerticalToolbar.Framework
         private int numItems = Game1.player.MaxItems;
         private Inventory verticalItems;
 
+        private void EnsurePlayerExtraSlots()
+        {
+            int required = Game1.player.MaxItems + NUM_BUTTONS;
+            for (int i = Game1.player.Items.Count; i < required; i++)
+                Game1.player.Items.Add(null);
+        }
+
+        private void EnsureToolbarSize()
+        {
+            while (verticalItems.Count < NUM_BUTTONS)
+                verticalItems.Add(null);
+            if (verticalItems.Count > NUM_BUTTONS)
+                verticalItems.RemoveRange(NUM_BUTTONS, verticalItems.Count - NUM_BUTTONS);
+        }
+
         public VerticalToolBar(Orientation o, int numButtons = 5, bool forceDraw = false)
             : base()
         {
@@ -40,9 +55,16 @@ namespace VerticalToolbar.Framework
             orientation = o;
             NUM_BUTTONS = numButtons;
             this.forceDraw = forceDraw;
+
+            EnsurePlayerExtraSlots();
             verticalItems = new Inventory();
             for (int i = 0; i < NUM_BUTTONS; i++)
-                verticalItems.Add(null);
+            {
+                if (Game1.player.Items.Count > numItems + i)
+                    verticalItems.Add(Game1.player.Items[numItems + i]);
+                else
+                    verticalItems.Add(null);
+            }
             getDimensions();
 
             for (int index = 0; index < NUM_BUTTONS; ++index)
@@ -120,6 +142,7 @@ namespace VerticalToolbar.Framework
 
         public Item RightClick(int x, int y, Item toAddTo, bool playSound = true)
         {
+            EnsurePlayerExtraSlots();
             foreach (ClickableComponent button in this.buttons)
             {
                 int int32 = Convert.ToInt32(button.name);
@@ -224,14 +247,27 @@ namespace VerticalToolbar.Framework
 
         public override void update(GameTime time)
         {
+            EnsureToolbarSize();
+            EnsurePlayerExtraSlots();
+
             if (numItems != Game1.player.MaxItems)
             {
                 int newInventory = Game1.player.MaxItems;
+                EnsurePlayerExtraSlots();
                 for (int i = 0; i < NUM_BUTTONS; i++)
+                {
                     this.buttons[i].name = string.Concat(i);
+                    Game1.player.Items[newInventory + i] = Game1.player.Items[numItems + i];
+                    Game1.player.Items[numItems + i] = null;
+                }
+                if (Game1.player.CurrentToolIndex >= numItems && Game1.player.CurrentToolIndex < numItems + NUM_BUTTONS)
+                    Game1.player.CurrentToolIndex = Game1.player.CurrentToolIndex - numItems + newInventory;
 
                 numItems = newInventory;
             }
+
+            for (int i = 0; i < NUM_BUTTONS; i++)
+                Game1.player.Items[numItems + i] = verticalItems[i];
         }
 
         public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
