@@ -39,28 +39,26 @@ namespace VerticalToolbar.Framework
                 {
                     if (heldItem != null)
                     {
-                        if (Game1.player.Items[Convert.ToInt32(button.name)] == null || Game1.player.Items[Convert.ToInt32(button.name)].canStackWith(heldItem))
+                        if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] == null || verticalToolBar.Inventory[Convert.ToInt32(button.name)].canStackWith(heldItem))
                         {
-                            if (Game1.player.CurrentToolIndex == Convert.ToInt32(button.name))
-                                heldItem.actionWhenBeingHeld(Game1.player);
-                            Utility.addItemToInventory(heldItem, Convert.ToInt32(button.name), Game1.player.Items);
+                            Utility.addItemToInventory(heldItem, Convert.ToInt32(button.name), verticalToolBar.Inventory);
                             Game1.player.CursorSlotItem = null;
                             Game1.playSound("stoneStep");
                             return;
                         }
-                        if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
+                        if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] != null)
                         {
                             Item swapItem = Game1.player.CursorSlotItem;
-                            Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
-                            Utility.addItemToInventory(swapItem, Convert.ToInt32(button.name), Game1.player.Items);
+                            Game1.player.CursorSlotItem = verticalToolBar.Inventory[Convert.ToInt32(button.name)];
+                            Utility.addItemToInventory(swapItem, Convert.ToInt32(button.name), verticalToolBar.Inventory);
                             return;
 
                         }
                     }
-                    if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
+                    if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] != null)
                     {
-                        Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
-                        Utility.removeItemFromInventory(Convert.ToInt32(button.name), Game1.player.Items);
+                        Game1.player.CursorSlotItem = verticalToolBar.Inventory[Convert.ToInt32(button.name)];
+                        Utility.removeItemFromInventory(Convert.ToInt32(button.name), verticalToolBar.Inventory);
                         return;
                     }
                 }
