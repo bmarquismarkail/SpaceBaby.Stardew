@@ -31,6 +31,7 @@ namespace VerticalToolbar.Framework
         private Item hoverItem;
         public bool forceDraw = false;
         public Inventory Inventory { get; } = new Inventory();
+        public Inventory mainInventory { get; } = new Inventory(); 
 
         public VerticalToolBar(Orientation o, int numButtons = 5, bool forceDraw = false)
             : base()
@@ -52,7 +53,7 @@ namespace VerticalToolbar.Framework
                         new Rectangle(
                             this.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
                             this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
-                            Game1.tileSize, 
+                            Game1.tileSize,
                             Game1.tileSize),
                         string.Concat(index)));
             }
@@ -96,6 +97,20 @@ namespace VerticalToolbar.Framework
             this.height = dimensionRectangle.Height;    
 
         }
+        public void setButtons()
+        {
+            for (int index = 0; index < NUM_BUTTONS; ++index)
+            {
+                this.buttons.Add(
+                    new ClickableComponent(
+                        new Rectangle(
+                            this.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
+                            this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
+                            Game1.tileSize,
+                            Game1.tileSize),
+                        string.Concat(index)));
+            }
+        }
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
             if (Game1.player.UsingTool)
@@ -104,6 +119,12 @@ namespace VerticalToolbar.Framework
             {
                 if (button.containsPoint(x, y))
                 {
+                    if (Game1.player.Items != this.Inventory)
+                    {
+                        mainInventory.AddRange(Game1.player.Items);
+                        Game1.player.Items.Clear();
+                        Game1.player.Items.AddRange(this.Inventory);
+                    }
                     Game1.player.CurrentToolIndex = Convert.ToInt32(button.name);
                     if (Game1.player.ActiveObject != null)
                     {
@@ -213,8 +234,6 @@ namespace VerticalToolbar.Framework
                     this.buttons[index].scale = (float)(1.0 + (11 - index) * 0.0299999993294477);
             }
         }
-
-
 
         public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
         {

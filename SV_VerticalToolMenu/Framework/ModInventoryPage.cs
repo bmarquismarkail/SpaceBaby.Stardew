@@ -11,17 +11,14 @@ namespace VerticalToolbar.Framework
     {
         private readonly VerticalToolBar verticalToolBar;
 
-        public ModInventoryPage(int x, int y, int width, int height)
+        public ModInventoryPage(int x, int y, int width, int height, VerticalToolBar toolbar)
             : base(x, y, width, height)
         {
-            verticalToolBar = new VerticalToolBar(
-                Orientation.LeftOfToolbar,
-                VerticalToolBar.NUM_BUTTONS,
-                true)
-            {
-                xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2,
-                yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4
-            };
+            this.verticalToolBar = toolbar;
+            verticalToolBar.forceDraw = true;
+            verticalToolBar.xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2;
+            verticalToolBar.yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4;
+            exitFunction = onMenuExit;
         }
 
         public override void performHoverAction(int x, int y)
@@ -99,6 +96,12 @@ namespace VerticalToolbar.Framework
             verticalToolBar.draw(b);
             base.draw(b);
             verticalToolBar.drawToolTip(b);
+        }
+        public void onMenuExit()
+        {
+            //verticalToolBar.getDimensions();
+            verticalToolBar.setButtons();
+            verticalToolBar.forceDraw = false;
         }
     }
 }
