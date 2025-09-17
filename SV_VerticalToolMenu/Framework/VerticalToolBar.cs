@@ -22,7 +22,6 @@ namespace VerticalToolbar.Framework
     internal class VerticalToolBar : IClickableMenu
     {
         public List<ClickableComponent> buttons = new List<ClickableComponent>();
-        public static int NUM_BUTTONS = 5;
         public Orientation orientation;
         private string hoverTitle = "";
         private float transparency = 1f;
@@ -31,28 +30,23 @@ namespace VerticalToolbar.Framework
         private Item hoverItem;
         public bool forceDraw = false;
         public Inventory Inventory { get; } = new Inventory();
-        public Inventory mainInventory { get; } = new Inventory(); 
 
         public VerticalToolBar(Orientation o, int numButtons = 5, bool forceDraw = false)
             : base()
         {
 
             orientation = o;
-            NUM_BUTTONS = numButtons;
             this.forceDraw = forceDraw;
             getDimensions();
-            for (int count = Inventory.Count; count < NUM_BUTTONS; count++)
+
+            for (int index = 0; index < numButtons; index++)
             {
                 Inventory.Add(null);
-            }
-
-            for (int index = 0; index < NUM_BUTTONS; ++index)
-            {
                 this.buttons.Add(
                     new ClickableComponent(
                         new Rectangle(
                             this.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
-                            this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
+                            this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + ((index + 1) * Game1.tileSize),
                             Game1.tileSize,
                             Game1.tileSize),
                         string.Concat(index)));
@@ -67,6 +61,7 @@ namespace VerticalToolbar.Framework
         public void getDimensions()
         {
             Rectangle dimensionRectangle;
+            int NUM_BUTTONS = Inventory.Count;
             dimensionRectangle.Width = Game1.tileSize * 3 / 2;
             dimensionRectangle.Height = Game1.tileSize* NUM_BUTTONS +(Game1.tileSize / 2);
 
@@ -74,19 +69,19 @@ namespace VerticalToolbar.Framework
             {
                 case Orientation.LeftOfToolbar:
                     dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) - (getInitialWidth() / 2);
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight(); 
+                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight(NUM_BUTTONS); 
                     break;
                 case Orientation.RightOfToolbar:
                     dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) + getToolbar().width - (getInitialWidth() / 2);
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
+                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight(NUM_BUTTONS);
                     break;
                 case Orientation.BottomLeft:
                     dimensionRectangle.X = IClickableMenu.spaceToClearSideBorder;
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
+                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight(NUM_BUTTONS);
                     break;
                 case Orientation.BottomRight:
                     dimensionRectangle.X = Game1.viewport.Width - (getInitialWidth() /2) -  IClickableMenu.spaceToClearSideBorder - getInitialWidth() - (Game1.showingHealth? 64 : 0);
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
+                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight(NUM_BUTTONS);
                     break;
                 default:
                     throw new NotSupportedException("Error: Orientation Not Supported");
@@ -99,7 +94,7 @@ namespace VerticalToolbar.Framework
         }
         public void setButtons()
         {
-            for (int index = 0; index < NUM_BUTTONS; ++index)
+            for (int index = 0; index < Inventory.Count; ++index)
             {
                 this.buttons.Add(
                     new ClickableComponent(
@@ -115,25 +110,11 @@ namespace VerticalToolbar.Framework
         {
             if (Game1.player.UsingTool)
                 return;
+            
             foreach (ClickableComponent button in this.buttons)
             {
                 if (button.containsPoint(x, y))
                 {
-                    if (Game1.player.Items != this.Inventory)
-                    {
-                        mainInventory.AddRange(Game1.player.Items);
-                        Game1.player.Items.Clear();
-                        Game1.player.Items.AddRange(this.Inventory);
-                    }
-                    Game1.player.CurrentToolIndex = Convert.ToInt32(button.name);
-                    if (Game1.player.ActiveObject != null)
-                    {
-                        Game1.player.showCarrying();
-                        Game1.playSound("pickUpItem");
-                        break;
-                    }
-                    Game1.player.showNotCarrying();
-                    Game1.playSound("stoneStep");
                     break;
                 }
             }
@@ -238,6 +219,7 @@ namespace VerticalToolbar.Framework
         public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
         {
             getDimensions();
+            int NUM_BUTTONS = Inventory.Count;
             for (int index = 0; index < NUM_BUTTONS; ++index)
                 buttons[index].bounds = new Rectangle(
                             //TODO: Use more reliable coordinates
@@ -265,17 +247,18 @@ namespace VerticalToolbar.Framework
             //Checks and draws the buttons
             if (!forceDraw)
             {
+                int NUM_BUTTONS = Inventory.Count;
                 int positionOnScreen1 = this.yPositionOnScreen;
                 if (Game1.options.pinToolbarToggle )
                 {
-                    this.yPositionOnScreen = Game1.viewport.Height - getInitialHeight();
+                    this.yPositionOnScreen = Game1.viewport.Height - getInitialHeight(NUM_BUTTONS);
                     this.transparency = Math.Min(1f, this.transparency + 0.075f);
                     if (Game1.GlobalToLocal(Game1.viewport, new Vector2(Game1.player.GetBoundingBox().Center.X, Game1.player.GetBoundingBox().Center.Y)).Y > (double)(Game1.viewport.Height - Game1.tileSize * 3))
                         this.transparency = Math.Max(0.33f, this.transparency - 0.15f);
                 }
 
                 else if ( !(orientation == Orientation.BottomLeft || orientation == Orientation.BottomRight) )
-                    this.yPositionOnScreen = (double)Game1.GlobalToLocal(Game1.viewport, new Vector2(Game1.player.GetBoundingBox().Center.X, Game1.player.GetBoundingBox().Center.Y)).Y > (double)(Game1.viewport.Height / 2 + Game1.tileSize) ? Game1.tileSize / 8 : Game1.viewport.Height - getInitialHeight() - Game1.tileSize / 8;
+                    this.yPositionOnScreen = (double)Game1.GlobalToLocal(Game1.viewport, new Vector2(Game1.player.GetBoundingBox().Center.X, Game1.player.GetBoundingBox().Center.Y)).Y > (double)(Game1.viewport.Height / 2 + Game1.tileSize) ? Game1.tileSize / 8 : Game1.viewport.Height - getInitialHeight(NUM_BUTTONS) - Game1.tileSize / 8;
                 if (orientation == Orientation.BottomRight && Game1.showingHealth)
                 {
                     int newXPos = Game1.viewport.Width - (getInitialWidth() / 2) - IClickableMenu.spaceToClearSideBorder - getInitialWidth() - 64;
@@ -297,7 +280,9 @@ namespace VerticalToolbar.Framework
             IClickableMenu.drawTextureBox(b, Game1.menuTexture, this.toolbarTextSource, this.xPositionOnScreen, this.yPositionOnScreen, this.width,
                 this.height, Color.White * this.transparency, 1f, false);
             int toolBarIndex = 0;
-            for (int index = 0; index < NUM_BUTTONS; ++index)
+            int numButtonsForDraw = Inventory.Count;
+            
+            for (int index = 0; index < numButtonsForDraw; ++index)
             {
                 this.buttons[index].scale = Math.Max(1f, this.buttons[index].scale - 0.025f);
                 Vector2 location = new Vector2(
@@ -340,9 +325,9 @@ namespace VerticalToolbar.Framework
             return (Game1.tileSize * 3 / 2) ;
         }
 
-        public static int getInitialHeight()
+        public static int getInitialHeight(int numButtons)
         {
-            return ((Game1.tileSize * NUM_BUTTONS) + (Game1.tileSize / 2));
+            return ((Game1.tileSize * numButtons) + (Game1.tileSize / 2));
         }
 
         public override void receiveRightClick(int x, int y, bool playSound = true)

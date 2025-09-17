@@ -86,7 +86,7 @@ namespace VerticalToolbar.Framework
 
         public override void draw(Microsoft.Xna.Framework.Graphics.SpriteBatch b)
         {
-            for (int index = 0; index < VerticalToolBar.NUM_BUTTONS; ++index)
+            for (int index = 0; index < verticalToolBar.Inventory.Count; ++index)
                 verticalToolBar.buttons[index].bounds = new Rectangle(
                             //TODO: Use more reliable coordinates
                             verticalToolBar.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
