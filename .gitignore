@@ -25,4 +25,7 @@ _ReSharper*/
 **/packages/*
 *.nuget.props
 *.nuget.targets
+
+# Agent configuration file
+AGENTS.md
 secrets.txt
