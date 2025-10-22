@@ -11,17 +11,14 @@ namespace VerticalToolbar.Framework
     {
         private readonly VerticalToolBar verticalToolBar;
 
-        public ModInventoryPage(int x, int y, int width, int height)
+        public ModInventoryPage(int x, int y, int width, int height, VerticalToolBar toolbar)
             : base(x, y, width, height)
         {
-            verticalToolBar = new VerticalToolBar(
-                Orientation.LeftOfToolbar,
-                VerticalToolBar.NUM_BUTTONS,
-                true)
-            {
-                xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2,
-                yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4
-            };
+            this.verticalToolBar = toolbar;
+            verticalToolBar.forceDraw = true;
+            verticalToolBar.xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2;
+            verticalToolBar.yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4;
+            exitFunction = onMenuExit;
         }
 
         public override void performHoverAction(int x, int y)
@@ -39,28 +36,26 @@ namespace VerticalToolbar.Framework
                 {
                     if (heldItem != null)
                     {
-                        if (Game1.player.Items[Convert.ToInt32(button.name)] == null || Game1.player.Items[Convert.ToInt32(button.name)].canStackWith(heldItem))
+                        if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] == null || verticalToolBar.Inventory[Convert.ToInt32(button.name)].canStackWith(heldItem))
                         {
-                            if (Game1.player.CurrentToolIndex == Convert.ToInt32(button.name))
-                                heldItem.actionWhenBeingHeld(Game1.player);
-                            Utility.addItemToInventory(heldItem, Convert.ToInt32(button.name), Game1.player.Items);
+                            Utility.addItemToInventory(heldItem, Convert.ToInt32(button.name), verticalToolBar.Inventory);
                             Game1.player.CursorSlotItem = null;
                             Game1.playSound("stoneStep");
                             return;
                         }
-                        if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
+                        if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] != null)
                         {
                             Item swapItem = Game1.player.CursorSlotItem;
-                            Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
-                            Utility.addItemToInventory(swapItem, Convert.ToInt32(button.name), Game1.player.Items);
+                            Game1.player.CursorSlotItem = verticalToolBar.Inventory[Convert.ToInt32(button.name)];
+                            Utility.addItemToInventory(swapItem, Convert.ToInt32(button.name), verticalToolBar.Inventory);
                             return;
 
                         }
                     }
-                    if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
+                    if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] != null)
                     {
-                        Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
-                        Utility.removeItemFromInventory(Convert.ToInt32(button.name), Game1.player.Items);
+                        Game1.player.CursorSlotItem = verticalToolBar.Inventory[Convert.ToInt32(button.name)];
+                        Utility.removeItemFromInventory(Convert.ToInt32(button.name), verticalToolBar.Inventory);
                         return;
                     }
                 }
@@ -91,7 +86,7 @@ namespace VerticalToolbar.Framework
 
         public override void draw(Microsoft.Xna.Framework.Graphics.SpriteBatch b)
         {
-            for (int index = 0; index < VerticalToolBar.NUM_BUTTONS; ++index)
+            for (int index = 0; index < verticalToolBar.Inventory.Count; ++index)
                 verticalToolBar.buttons[index].bounds = new Rectangle(
                             //TODO: Use more reliable coordinates
                             verticalToolBar.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
@@ -101,6 +96,12 @@ namespace VerticalToolbar.Framework
             verticalToolBar.draw(b);
             base.draw(b);
             verticalToolBar.drawToolTip(b);
+        }
+        public void onMenuExit()
+        {
+            //verticalToolBar.getDimensions();
+            verticalToolBar.setButtons();
+            verticalToolBar.forceDraw = false;
         }
     }
 }

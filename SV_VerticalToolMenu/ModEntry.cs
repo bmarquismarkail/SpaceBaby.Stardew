@@ -21,6 +21,7 @@ namespace VerticalToolbar
         private int triggerPolling = 300;
         private int released = 0;
         private int baseMaxItems;
+        private int NUM_BUTTONS = 5; // Number of buttons in the toolbar, can be changed if needed
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -171,7 +172,7 @@ namespace VerticalToolbar
             {
                 List<IClickableMenu> pages = this.Helper.Reflection.GetField<List<IClickableMenu>>(menu, "pages").GetValue();
                 pages.RemoveAt(0);
-                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height));
+                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height, verticalToolbar));
             }
         }
 
@@ -253,7 +254,7 @@ namespace VerticalToolbar
             {
                 List<Item> range = Game1.player.Items.ToList().GetRange(12,baseMaxItems - 12);
                 range.AddRange(Game1.player.Items.ToList().GetRange(0, 12));
-                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
+                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, NUM_BUTTONS));
                 Game1.player.setInventory(range);
             }
             else
@@ -261,7 +262,7 @@ namespace VerticalToolbar
                 List<Item> range = Game1.player.Items.ToList().GetRange(baseMaxItems - 12, 12);
                 for (int index = 0; index < baseMaxItems - 12; ++index)
                     range.Add(Game1.player.Items[index]);
-                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
+                range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, NUM_BUTTONS));
                 Game1.player.setInventory(range);
             }
             Game1.player.netItemStowed.Set(false);
