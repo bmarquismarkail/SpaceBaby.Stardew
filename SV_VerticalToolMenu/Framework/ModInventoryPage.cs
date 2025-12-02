@@ -11,14 +11,17 @@ namespace VerticalToolbar.Framework
     {
         private readonly VerticalToolBar verticalToolBar;
 
-        public ModInventoryPage(int x, int y, int width, int height, VerticalToolBar toolbar)
+        public ModInventoryPage(int x, int y, int width, int height)
             : base(x, y, width, height)
         {
-            this.verticalToolBar = toolbar;
-            verticalToolBar.forceDraw = true;
-            verticalToolBar.xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2;
-            verticalToolBar.yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4;
-            exitFunction = onMenuExit;
+            verticalToolBar = new VerticalToolBar(
+                Orientation.LeftOfToolbar,
+                VerticalToolBar.NUM_BUTTONS,
+                true)
+            {
+                xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2,
+                yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4
+            };
         }
 
         public override void performHoverAction(int x, int y)
@@ -29,99 +32,50 @@ namespace VerticalToolbar.Framework
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
-            // Handle clicks on vertical toolbar buttons
-            if (HandleVerticalToolbarClick(x, y))
-                return;
-                
-            // Handle organize button click
-            if (HandleOrganizeButtonClick(x, y))
-                return;
-
-            // Fall back to base implementation
-            base.receiveLeftClick(x, y, playSound);
-        }
-        
-        private bool HandleVerticalToolbarClick(int x, int y)
-        {
             Item heldItem = Game1.player.CursorSlotItem;
-            
             foreach (ClickableComponent button in verticalToolBar.buttons)
             {
-                if (!button.containsPoint(x, y))
-                    continue;
-                    
-                int slotIndex = Convert.ToInt32(button.name);
-                Item inventoryItem = Game1.player.Items[slotIndex];
-                
-                // Handle case: Adding or stacking items
-                if (heldItem != null)
+                if (button.containsPoint(x, y))
                 {
                     if (heldItem != null)
                     {
-                        if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] == null || verticalToolBar.Inventory[Convert.ToInt32(button.name)].canStackWith(heldItem))
+                        if (Game1.player.Items[Convert.ToInt32(button.name)] == null || Game1.player.Items[Convert.ToInt32(button.name)].canStackWith(heldItem))
                         {
-                            Utility.addItemToInventory(heldItem, Convert.ToInt32(button.name), verticalToolBar.Inventory);
+                            if (Game1.player.CurrentToolIndex == Convert.ToInt32(button.name))
+                                heldItem.actionWhenBeingHeld(Game1.player);
+                            Utility.addItemToInventory(heldItem, Convert.ToInt32(button.name), Game1.player.Items);
                             Game1.player.CursorSlotItem = null;
                             Game1.playSound("stoneStep");
                             return;
                         }
-                        if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] != null)
+                        if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
                         {
                             Item swapItem = Game1.player.CursorSlotItem;
-                            Game1.player.CursorSlotItem = verticalToolBar.Inventory[Convert.ToInt32(button.name)];
-                            Utility.addItemToInventory(swapItem, Convert.ToInt32(button.name), verticalToolBar.Inventory);
+                            Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
+                            Utility.addItemToInventory(swapItem, Convert.ToInt32(button.name), Game1.player.Items);
                             return;
 
                         }
                     }
-                    if (verticalToolBar.Inventory[Convert.ToInt32(button.name)] != null)
+                    if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
                     {
-                        Game1.player.CursorSlotItem = verticalToolBar.Inventory[Convert.ToInt32(button.name)];
-                        Utility.removeItemFromInventory(Convert.ToInt32(button.name), verticalToolBar.Inventory);
+                        Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
+                        Utility.removeItemFromInventory(Convert.ToInt32(button.name), Game1.player.Items);
                         return;
                     }
                 }
             }
-            
-            return false;
-        }
-        
-        private static bool HandleItemPlacement(Item heldItem, int slotIndex, Item inventoryItem)
-        {
-            // Adding to empty slot or stacking
-            if (inventoryItem == null || inventoryItem.canStackWith(heldItem))
+            if (this.organizeButton.containsPoint(x, y))
             {
-                if (Game1.player.CurrentToolIndex == slotIndex)
-                    heldItem.actionWhenBeingHeld(Game1.player);
-                    
-                Utility.addItemToInventory(heldItem, slotIndex, Game1.player.Items);
-                Game1.player.CursorSlotItem = null;
-                Game1.playSound("stoneStep");
-                return true;
+                List<Item> items = Game1.player.Items.ToList();
+                items.Sort(0, Game1.player.MaxItems, null);
+                items.Reverse(0, Game1.player.MaxItems);
+                Game1.player.setInventory(items);
+                Game1.playSound("Ship");
+                return;
             }
-            // Swapping items
-            else if (inventoryItem != null)
-            {
-                Item swapItem = Game1.player.CursorSlotItem;
-                Game1.player.CursorSlotItem = inventoryItem;
-                Utility.addItemToInventory(swapItem, slotIndex, Game1.player.Items);
-                return true;
-            }
-            
-            return false;
-        }
-        
-        private bool HandleOrganizeButtonClick(int x, int y)
-        {
-            if (!this.organizeButton.containsPoint(x, y))
-                return false;
-                
-            List<Item> items = Game1.player.Items.ToList();
-            items.Sort(0, Game1.player.MaxItems, null);
-            items.Reverse(0, Game1.player.MaxItems);
-            Game1.player.setInventory(items);
-            Game1.playSound("Ship");
-            return true;
+
+            base.receiveLeftClick(x, y, true);
         }
 
         public override void receiveRightClick(int x, int y, bool playSound = true)
@@ -137,8 +91,9 @@ namespace VerticalToolbar.Framework
 
         public override void draw(Microsoft.Xna.Framework.Graphics.SpriteBatch b)
         {
-            for (int index = 0; index < verticalToolBar.Inventory.Count; ++index)
+            for (int index = 0; index < VerticalToolBar.NUM_BUTTONS; ++index)
                 verticalToolBar.buttons[index].bounds = new Rectangle(
+                            //TODO: Use more reliable coordinates
                             verticalToolBar.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
                             verticalToolBar.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
                             Game1.tileSize,
@@ -146,12 +101,6 @@ namespace VerticalToolbar.Framework
             verticalToolBar.draw(b);
             base.draw(b);
             verticalToolBar.drawToolTip(b);
-        }
-        public void onMenuExit()
-        {
-            //verticalToolBar.getDimensions();
-            verticalToolBar.setButtons();
-            verticalToolBar.forceDraw = false;
         }
     }
 }
