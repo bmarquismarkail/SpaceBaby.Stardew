@@ -86,14 +86,20 @@ Fallback when remote build logic is unavailable or BUILD_LOCAL is true:
 ~/src/.decompiled
 ```
 
-### 4.2 Required Usage
+### 4.2 Libraries to Reference
+Agents must inspect the following decompiled libraries:
+* Stardew Valley core game code
+* SMAPI (Stardew Modding API)
+* Any other essential dependencies decompiled into the specified directories
+
+### 4.3 Required Usage
 
 Agents must:
 
 * Inspect the decompiled code before answering questions involving game mechanics or internal SMAPI/SDV behavior.
 * Use these directories as the authoritative reference for external library behavior.
 
-### 4.3 Prohibited Usage
+### 4.4 Prohibited Usage
 
 Agents must not:
 
