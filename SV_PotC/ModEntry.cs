@@ -11,7 +11,6 @@ using StardewValley.Characters;
 using StardewValley.Events;
 using StardewValley.Locations;
 using StardewValley.Menus;
-using SV_PotC.Framework;
 
 namespace SpaceBaby.PartOfTheCommunity
 {
@@ -285,7 +284,11 @@ namespace SpaceBaby.PartOfTheCommunity
                     // track talk & apply nearby NPC bonuses
                     if (farmer.hasTalkedToFriendToday(friend.Name))
                     {
-                        if (!session.HasTalked)
+                        // Create unique key for this farmer-NPC conversation
+                        string conversationKey = $"{farmer.UniqueMultiplayerID}_{friend.Name}";
+                        
+                        // Only run nearby NPC logic if this specific conversation hasn't been processed yet today
+                        if (!session.NearbyTalksSeen.Contains($"processed_{conversationKey}"))
                         {
                             List<Character> charactersWithinDistance = ModEntry.AreThereCharactersWithinDistance(farmer.Tile, 20, farmer.currentLocation);
                             foreach (Character nearbyNpc in charactersWithinDistance)
@@ -308,11 +311,15 @@ namespace SpaceBaby.PartOfTheCommunity
                                 // get unique key for this nearby talk
                                 string nearbyTalkKey = $"{nearbyNpc.Name}_{friend.Name}";
                                 
-                                // add to seen talks
+                                // add to seen talks (for tracking unique pairs)
                                 session.NearbyTalksSeen.Add(nearbyTalkKey);
                                 
-                                // count how often this NPC has been seen by this farmer
-                                int nearbyTalkCount = session.NearbyTalksSeen.Count(t => t.StartsWith($"{nearbyNpc.Name}_"));
+                                // increment witness count for this NPC (this is the actual counter for bonuses)
+                                if (!session.WitnessCount.ContainsKey(nearbyNpc.Name))
+                                    session.WitnessCount[nearbyNpc.Name] = 0;
+                                session.WitnessCount[nearbyNpc.Name]++;
+                                
+                                int nearbyTalkCount = session.WitnessCount[nearbyNpc.Name];
 
                                 // add witness bonus when overhearing 2^n conversations
                                 if ((nearbyTalkCount & (nearbyTalkCount - 1)) == 0)
@@ -324,7 +331,10 @@ namespace SpaceBaby.PartOfTheCommunity
                                 else // log TalksSeen counter
                                     this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. {nearbyNpc.Name} has seen {nearbyTalkCount} talks", LogLevel.Info);
                             }
-                            session.HasTalked = true;
+                            
+                            // Mark this specific conversation as processed
+                            session.NearbyTalksSeen.Add($"processed_{conversationKey}");
+                            session.HasTalked = true; // Keep for any other general tracking needs
                         }
                     }
                 }
@@ -335,12 +345,18 @@ namespace SpaceBaby.PartOfTheCommunity
                 {
                     // get shopkeeper
                     if (!this.Characters.TryGetValue(shopOwnerName, out CharacterInfo shopkeeper))
-                        return;
+                        continue;
 
-                    // mark shopped
-                    if (!session.HasShopped && this.Helper.Reflection.GetField<Item>(shopMenu, "heldItem").GetValue() != null)
+                    // Create unique key for this farmer-shopkeeper interaction
+                    string shopKey = $"shop_{farmer.UniqueMultiplayerID}_{shopOwnerName}";
+
+                    // mark shopped - check if this specific shopkeeper has been visited by this farmer today
+                    if (!session.NearbyTalksSeen.Contains(shopKey) && this.Helper.Reflection.GetField<Item>(shopMenu, "heldItem").GetValue() != null)
                     {
-                        session.HasShopped = true;
+                        // Mark this shopkeeper as visited by this farmer
+                        session.NearbyTalksSeen.Add(shopKey);
+                        session.HasShopped = true; // Keep for any general tracking needs
+                        
                         if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
                         {
                             this.AddFriendshipPoints(farmer, shopkeeperNpc, this.Config.UjamaaBonus);

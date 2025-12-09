@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using StardewValley;
 
-namespace SV_PotC.Framework
+namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>Tracks transient per-farmer state that resets daily.</summary>
     public class FarmerSession
@@ -13,6 +13,7 @@ namespace SV_PotC.Framework
         public bool HasTrackedDailyQuest { get; set; }
         public int DaysSinceDailyQuest { get; set; }
         public HashSet<string> NearbyTalksSeen { get; set; } = new HashSet<string>();
+        public Dictionary<string, int> WitnessCount { get; set; } = new Dictionary<string, int>();
         public bool HasTalked { get; set; }
         public bool ReceivedGift { get; set; }
         public bool HasShopped { get; set; }
@@ -25,6 +26,7 @@ namespace SV_PotC.Framework
             HasProcessedWeddingOrBirth = false;
             HasTrackedDailyQuest = false;
             NearbyTalksSeen.Clear();
+            WitnessCount.Clear();
             HasTalked = false;
             ReceivedGift = false;
             HasShopped = false;
