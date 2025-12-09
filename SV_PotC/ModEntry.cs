@@ -186,6 +186,16 @@ namespace SpaceBaby.PartOfTheCommunity
             // Reset all farmer sessions for the new day and increment daily quest counter
             PlayerSession.ResetAllSessions();
             PlayerSession.IncrementDailyQuestCounter();
+            
+            // Ensure all current farmers have their quest counts initialized
+            foreach (Farmer farmer in Game1.getAllFarmers())
+            {
+                var farmerData = this.GetPlayerData(farmer);
+                if (farmerData.LastKnownQuestCount == null)
+                {
+                    farmerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
+                }
+            }
 
             if (!this.IsReady)
             {
@@ -260,8 +270,17 @@ namespace SpaceBaby.PartOfTheCommunity
 
             foreach (Farmer farmer in Game1.getAllFarmers())
             {
-                // get farmer session
+                // get farmer session and data
                 var session = PlayerSession.GetSession(farmer);
+                var farmerData = this.GetPlayerData(farmer);
+                
+                // Ensure new farmhands get proper quest tracking initialization
+                if (farmerData.LastKnownQuestCount == null)
+                {
+                    farmerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
+                    // New farmhands start with current day count to avoid infinite bonuses
+                    session.DaysSinceDailyQuest = 0; // They start fresh but don't get retroactive bonuses
+                }
                 
                 foreach (KeyValuePair<string, Friendship> pair in farmer.friendshipData.Pairs)
                 {
@@ -406,10 +425,12 @@ namespace SpaceBaby.PartOfTheCommunity
                     session.HasProcessedWeddingOrBirth = true;
                 }
 
-                // check if player completed daily quest
-                if (Game1.stats.QuestsCompleted > this.CurrentNumberOfCompletedDailyQuests)
+                // check if player completed daily quest - track per farmer, not globally
+                uint farmerQuestCount = farmer.stats.QuestsCompleted;
+                
+                if (farmerQuestCount > (farmerData.LastKnownQuestCount ?? 0))
                 {
-                    this.CurrentNumberOfCompletedDailyQuests = Game1.stats.QuestsCompleted;
+                    farmerData.LastKnownQuestCount = farmerQuestCount;
                     session.DaysSinceDailyQuest = 0;
                     session.HasTrackedDailyQuest = true;
                 }

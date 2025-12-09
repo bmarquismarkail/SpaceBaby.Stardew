@@ -4,5 +4,6 @@
     {
         public bool HasGottenInitialUjimaBonus { get; set; }
         public bool HasGottenInitialKuumbaBonus { get; set; }
+        public uint? LastKnownQuestCount { get; set; }
     }
 }
