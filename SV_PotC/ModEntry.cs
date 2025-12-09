@@ -183,6 +183,10 @@ namespace SpaceBaby.PartOfTheCommunity
             this.CurrentUniqueItemsShipped = Game1.player.basicShipped.Count();
             this.CurrentNumberOfCompletedDailyQuests = Game1.stats.QuestsCompleted;
             
+            // Initialize PlayerData before any GetPlayerData calls to prevent NullReferenceException
+            if (this.PlayerData == null)
+                this.PlayerData = this.LoadPlayerData();
+            
             // Reset all farmer sessions for the new day and increment daily quest counter
             // Ensure sessions exist for all current farmers first
             foreach (Farmer farmer in Game1.getAllFarmers())
@@ -205,8 +209,6 @@ namespace SpaceBaby.PartOfTheCommunity
             if (!this.IsReady)
             {
                 // init data
-
-                this.PlayerData = this.LoadPlayerData();
                 this.IsReady = true;
 
                 foreach (Farmer farmer in Game1.getAllFarmers())
@@ -279,13 +281,14 @@ namespace SpaceBaby.PartOfTheCommunity
                 var session = PlayerSession.GetSession(farmer);
                 var farmerData = this.GetPlayerData(farmer); // This handles lazy initialization
                 
-                // For new farmhands, ensure they start with proper daily quest counter
-                // If this is their first time being processed, sync their session state
-                if (session.DaysSinceDailyQuest == 0 && !session.HasTrackedDailyQuest && farmerData.LastKnownQuestCount == farmer.stats.QuestsCompleted)
+                // For farmers who joined after DayStarted, ensure they get proper daily quest counter advancement
+                // Check if this farmer missed the daily increment (DaysSinceDailyQuest should advance daily)
+                bool isMissingDailyAdvancement = session.DaysSinceDailyQuest == 0 && !session.HasTrackedDailyQuest;
+                if (isMissingDailyAdvancement)
                 {
-                    // This is likely a new farmhand - give them appropriate decay based on how many days have passed
-                    // We can't determine exact days, so start them fresh but not with infinite bonuses
-                    session.DaysSinceDailyQuest = 1; // Start with 1 day to prevent full bonus abuse
+                    // This farmer likely joined after the daily reset - give them reasonable decay timing
+                    // We'll start them at 1 to avoid giving infinite bonuses but not overly penalize them
+                    session.DaysSinceDailyQuest = 1;
                 }
                 
                 foreach (KeyValuePair<string, Friendship> pair in farmer.friendshipData.Pairs)
@@ -433,8 +436,9 @@ namespace SpaceBaby.PartOfTheCommunity
 
                 // check if player completed daily quest - track per farmer, not globally
                 uint farmerQuestCount = farmer.stats.QuestsCompleted;
+                uint lastKnownCount = farmerData.LastKnownQuestCount ?? farmerQuestCount; // Use current count if null to prevent false detection
                 
-                if (farmerQuestCount > (farmerData.LastKnownQuestCount ?? 0))
+                if (farmerQuestCount > lastKnownCount)
                 {
                     session.DaysSinceDailyQuest = 0;
                     session.HasTrackedDailyQuest = true;
