@@ -272,15 +272,7 @@ namespace SpaceBaby.PartOfTheCommunity
             {
                 // get farmer session and data
                 var session = PlayerSession.GetSession(farmer);
-                var farmerData = this.GetPlayerData(farmer);
-                
-                // Ensure new farmhands get proper quest tracking initialization
-                if (farmerData.LastKnownQuestCount == null)
-                {
-                    farmerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
-                    // New farmhands start with current day count to avoid infinite bonuses
-                    session.DaysSinceDailyQuest = 0; // They start fresh but don't get retroactive bonuses
-                }
+                var farmerData = this.GetPlayerData(farmer); // This now handles lazy initialization
                 
                 foreach (KeyValuePair<string, Friendship> pair in farmer.friendshipData.Pairs)
                 {
@@ -430,10 +422,12 @@ namespace SpaceBaby.PartOfTheCommunity
                 
                 if (farmerQuestCount > (farmerData.LastKnownQuestCount ?? 0))
                 {
-                    farmerData.LastKnownQuestCount = farmerQuestCount;
                     session.DaysSinceDailyQuest = 0;
                     session.HasTrackedDailyQuest = true;
                 }
+                
+                // Always update LastKnownQuestCount to keep sessions in sync
+                farmerData.LastKnownQuestCount = farmerQuestCount;
             }
         }
 
@@ -792,6 +786,12 @@ namespace SpaceBaby.PartOfTheCommunity
             {
                 playerData = new PlayerData();
                 this.PlayerData[id] = playerData;
+            }
+
+            // Lazy initialization for quest tracking to handle farmhands joining anytime
+            if (playerData.LastKnownQuestCount == null)
+            {
+                playerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
             }
 
             return playerData;
