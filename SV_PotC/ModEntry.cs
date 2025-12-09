@@ -701,7 +701,7 @@ namespace SpaceBaby.PartOfTheCommunity
             foreach (NPC npc in Utility.getAllCharacters())
             {
                 if (npc.IsVillager && !characters.ContainsKey(npc.Name))
-                    characters[npc.Name] = new CharacterInfo(npc.Name, npc.Gender == Gender.Male, type: CharacterType.Child);
+                    characters[npc.Name] = new CharacterInfo(npc.Name, npc.Gender == Gender.Male, type: CharacterType.Villager);
             }
 
             // add children
