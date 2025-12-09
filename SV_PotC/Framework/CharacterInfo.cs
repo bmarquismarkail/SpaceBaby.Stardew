@@ -23,18 +23,6 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <summary>Whether the NPC owns a shop.</summary>
         public bool IsShopOwner { get; set; }
 
-        /// <summary>Whether the player talked to this NPC today.</summary>
-        public bool HasTalked { get; set; }
-
-        /// <summary>Whether the player gifted this NPC today.</summary>
-        public bool ReceivedGift { get; set; }
-
-        /// <summary>Whether the player shopped at the NPC's store today.</summary>
-        public bool HasShopped { get; set; }
-
-        /// <summary>The number of NPCs this character saw the player talk to nearby.</summary>
-        public int NearbyTalksSeen { get; set; }
-
         /// <summary>The NPC's relationships with other NPCs.</summary>
         public IList<CharacterRelationship> Relationships { get; } = new List<CharacterRelationship>();
 
