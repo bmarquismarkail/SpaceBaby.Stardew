@@ -28,3 +28,4 @@ _ReSharper*/
 
 # Agent configuration file
 AGENTS.md
+secrets.txt
