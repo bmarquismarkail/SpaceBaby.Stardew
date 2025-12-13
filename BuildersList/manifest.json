@@ -5,6 +5,6 @@
   "Description": "Provides tooltips for the everyday scavenger",
   "UniqueID": "SpaceBaby.BuildersList",
   "EntryDll": "BuildersList.dll",
-  "MinimumApiVersion": "4.0.0",
+  "MinimumApiVersion": "4.3.0",
   "UpdateKeys": [ "Nexus:5347" ]
 }
