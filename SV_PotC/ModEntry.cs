@@ -38,7 +38,6 @@ namespace SpaceBaby.PartOfTheCommunity
         private IDictionary<string, CharacterInfo> Characters;
         private int CurrentNumberOfCompletedBundles;
         private uint CurrentNumberOfCompletedDailyQuests;
-        private int CurrentUniqueItemsShipped;
         private bool IsReady;
         private ModConfig Config;
         private IDictionary<long, PlayerData> PlayerData;
@@ -180,7 +179,6 @@ namespace SpaceBaby.PartOfTheCommunity
             // refresh data
             this.Characters = this.GetCharacters();
             this.CurrentNumberOfCompletedBundles = ((CommunityCenter)Game1.getLocationFromName("CommunityCenter")).numberOfCompleteBundles();
-            this.CurrentUniqueItemsShipped = Game1.player.basicShipped.Count();
             this.CurrentNumberOfCompletedDailyQuests = Game1.stats.QuestsCompleted;
             
             // Initialize PlayerData before any GetPlayerData calls to prevent NullReferenceException
@@ -204,6 +202,8 @@ namespace SpaceBaby.PartOfTheCommunity
                 var farmerData = this.GetPlayerData(farmer);
                 // Reset to current count to prevent false "new quest" detection
                 farmerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
+                // Initialize shipped items count for new day tracking
+                farmerData.LastKnownUniqueItemsShipped = farmer.basicShipped.Count();
             }
 
             if (!this.IsReady)
@@ -250,7 +250,6 @@ namespace SpaceBaby.PartOfTheCommunity
             this.Characters = null;
             this.CurrentNumberOfCompletedBundles = 0;
             this.CurrentNumberOfCompletedDailyQuests = 0;
-            this.CurrentUniqueItemsShipped = 0;
             
             // Clear all player session data
             PlayerSession.ClearAll();
@@ -414,21 +413,23 @@ namespace SpaceBaby.PartOfTheCommunity
                 // check if player is getting married or having a baby
                 if (!string.IsNullOrWhiteSpace(farmer.spouse) && (Game1.weddingToday || Game1.farmEvent is BirthingEvent) && !session.HasProcessedWeddingOrBirth)
                 {
-                    this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse);
-                    foreach (CharacterRelationship relation in spouse.Relationships)
+                    if (this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse) && spouse != null)
                     {
-                        if (!relation.Character.TryGetNpc(out NPC relationNpc))
-                            continue;
+                        foreach (CharacterRelationship relation in spouse.Relationships)
+                        {
+                            if (!relation.Character.TryGetNpc(out NPC relationNpc))
+                                continue;
 
-                        if (relation.IsFamily)
-                        {
-                            this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry);
-                            this.Monitor.Log($"{relation}: Married into the family, received +{this.Config.UmojaBonusMarry} friendship", LogLevel.Info);
-                        }
-                        else
-                        {
-                            this.AddFriendshipPoints(farmer,relationNpc, this.Config.UmojaBonusMarry / 2);
-                            this.Monitor.Log($"{relation}: Married a friend, received +{this.Config.UmojaBonusMarry / 2} friendship", LogLevel.Info);
+                            if (relation.IsFamily)
+                            {
+                                this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry);
+                                this.Monitor.Log($"{relation}: Married into the family, received +{this.Config.UmojaBonusMarry} friendship", LogLevel.Info);
+                            }
+                            else
+                            {
+                                this.AddFriendshipPoints(farmer,relationNpc, this.Config.UmojaBonusMarry / 2);
+                                this.Monitor.Log($"{relation}: Married a friend, received +{this.Config.UmojaBonusMarry / 2} friendship", LogLevel.Info);
+                            }
                         }
                     }
                     session.HasProcessedWeddingOrBirth = true;
@@ -464,18 +465,10 @@ namespace SpaceBaby.PartOfTheCommunity
                     if (!character.TryGetNpc(out NPC npc))
                         continue;
 
-                    // Check if any relationships received gifts by looking at all farmers who gave gifts
-                    int relationsGifted = 0;
-                    foreach (Farmer allFarmer in Game1.getAllFarmers())
-                    {
-                        var farmerSession = PlayerSession.GetSession(allFarmer);
-                        if (farmerSession.ReceivedGift)
-                        {
-                            relationsGifted += character.Relationships.Count(p => 
-                                allFarmer.friendshipData.ContainsKey(p.Character.Name) && 
-                                allFarmer.friendshipData[p.Character.Name].GiftsToday > 0);
-                        }
-                    }
+                    // Check if this farmer gave gifts to this character's relationships
+                    int relationsGifted = character.Relationships.Count(p => 
+                        farmer.friendshipData.ContainsKey(p.Character.Name) && 
+                        farmer.friendshipData[p.Character.Name].GiftsToday > 0);
                     
                     if (relationsGifted > 0)
                     {
@@ -539,11 +532,13 @@ namespace SpaceBaby.PartOfTheCommunity
                 }
 
                 // bonus for new shipped items
-                if (farmer.basicShipped.Count() > this.CurrentUniqueItemsShipped)
+                int currentShippedCount = farmer.basicShipped.Count();
+                if (currentShippedCount > farmerData.LastKnownUniqueItemsShipped)
                 {
-                    int bonusPoints = this.Config.KuumbaBonus * (farmer.basicShipped.Count() - this.CurrentUniqueItemsShipped);
+                    int bonusPoints = this.Config.KuumbaBonus * (currentShippedCount - farmerData.LastKnownUniqueItemsShipped);
                     Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
                     this.Monitor.Log($"Gained {bonusPoints} friendship with everyone for shipping new items.", LogLevel.Info);
+                    farmerData.LastKnownUniqueItemsShipped = currentShippedCount;
                 }
 
                 // save player data
