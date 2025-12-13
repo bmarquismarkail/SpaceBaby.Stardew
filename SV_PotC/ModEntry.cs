@@ -427,7 +427,7 @@ namespace SpaceBaby.PartOfTheCommunity
                             }
                             else
                             {
-                                this.AddFriendshipPoints(farmer,relationNpc, this.Config.UmojaBonusMarry / 2);
+                                this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry / 2);
                                 this.Monitor.Log($"{relation}: Married a friend, received +{this.Config.UmojaBonusMarry / 2} friendship", LogLevel.Info);
                             }
                         }
