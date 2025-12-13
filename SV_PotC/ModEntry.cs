@@ -532,6 +532,7 @@ namespace SpaceBaby.PartOfTheCommunity
                 }
 
                 // bonus for new shipped items
+                var farmerData = this.GetPlayerData(farmer);
                 int currentShippedCount = farmer.basicShipped.Count();
                 if (currentShippedCount > farmerData.LastKnownUniqueItemsShipped)
                 {
