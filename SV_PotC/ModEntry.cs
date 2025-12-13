@@ -36,16 +36,11 @@ namespace SpaceBaby.PartOfTheCommunity
 
         /// <summary>Metadata for NPCs tracked by the mod.</summary>
         private IDictionary<string, CharacterInfo> Characters;
-        private bool HasEnteredEvent;
         private int CurrentNumberOfCompletedBundles;
         private uint CurrentNumberOfCompletedDailyQuests;
-        private bool HasRecentlyCompletedQuest;
-        private int DaysAfterCompletingLastDailyQuest = -1;
-        private int CurrentUniqueItemsShipped;
         private bool IsReady;
         private ModConfig Config;
-        private PlayerData PlayerData;
-
+        private IDictionary<long, PlayerData> PlayerData;
 
         /*********
         ** Public methods
@@ -184,43 +179,63 @@ namespace SpaceBaby.PartOfTheCommunity
             // refresh data
             this.Characters = this.GetCharacters();
             this.CurrentNumberOfCompletedBundles = ((CommunityCenter)Game1.getLocationFromName("CommunityCenter")).numberOfCompleteBundles();
-            this.CurrentUniqueItemsShipped = Game1.player.basicShipped.Count();
             this.CurrentNumberOfCompletedDailyQuests = Game1.stats.QuestsCompleted;
-            this.HasEnteredEvent = false;
+            
+            // Initialize PlayerData before any GetPlayerData calls to prevent NullReferenceException
+            if (this.PlayerData == null)
+                this.PlayerData = this.LoadPlayerData();
+            
+            // Reset all farmer sessions for the new day and increment daily quest counter
+            // Ensure sessions exist for all current farmers first
+            foreach (Farmer farmer in Game1.getAllFarmers())
+            {
+                PlayerSession.GetSession(farmer); // Ensures session exists
+                var farmerData = this.GetPlayerData(farmer); // Ensures data exists and quest count is initialized
+            }
+            
+            PlayerSession.ResetAllSessions();
+            PlayerSession.IncrementDailyQuestCounter();
+            
+            // Initialize quest counts for all current farmers to prevent false quest completion detection
+            foreach (Farmer farmer in Game1.getAllFarmers())
+            {
+                var farmerData = this.GetPlayerData(farmer);
+                // Reset to current count to prevent false "new quest" detection
+                farmerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
+                // Initialize shipped items count for new day tracking
+                farmerData.LastKnownUniqueItemsShipped = farmer.basicShipped.Count();
+            }
 
-            // init on first load
-            if (!Context.IsMainPlayer)
-                this.IsReady = true;
-            else if (!this.IsReady)
+            if (!this.IsReady)
             {
                 // init data
-                this.PlayerData =
-                    this.Helper.Data.ReadSaveData<PlayerData>("data")
-                    ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json") // legacy file
-                    ?? new PlayerData();
-
                 this.IsReady = true;
 
-                // add initial community center bonus
-                if (!this.PlayerData.HasGottenInitialUjimaBonus)
+                foreach (Farmer farmer in Game1.getAllFarmers())
                 {
-                    int bonusPoints = this.Config.UjimaBonus * this.CurrentNumberOfCompletedBundles;
-                    foreach (CharacterInfo shopkeeper in this.Characters.Values.Where(p => p.IsShopOwner))
-                    {
-                        if (shopkeeper.TryGetNpc(out NPC npc))
-                            this.AddFriendshipPoints(npc, bonusPoints);
-                    }
-                    this.Monitor.Log($"Gained {bonusPoints} friendship from all store owners for completing {this.CurrentNumberOfCompletedBundles} {(this.CurrentNumberOfCompletedBundles > 1 ? "Bundles" : "Bundle")}", LogLevel.Info);
-                    this.PlayerData.HasGottenInitialUjimaBonus = true;
-                }
+                    PlayerData farmerData = this.GetPlayerData(farmer);
 
-                // add initial items shipped bonus
-                if (!this.PlayerData.HasGottenInitialKuumbaBonus)
-                {
-                    int bonusPoints = this.Config.KuumbaBonus * this.CurrentUniqueItemsShipped;
-                    Utility.improveFriendshipWithEveryoneInRegion(Game1.player,bonusPoints,"Town");
-                    this.Monitor.Log($"Gained {bonusPoints} friendship for shipping {this.CurrentUniqueItemsShipped} unique {(this.CurrentUniqueItemsShipped != 1 ? "items" : "item")}", LogLevel.Info);
-                    this.PlayerData.HasGottenInitialKuumbaBonus = true;
+                    // add initial community center bonus
+                    if (!farmerData.HasGottenInitialUjimaBonus)
+                    {
+                        int bonusPoints = this.Config.UjimaBonus * this.CurrentNumberOfCompletedBundles;
+                        foreach (CharacterInfo shopkeeper in this.Characters.Values.Where(p => p.IsShopOwner))
+                        {
+                            if (shopkeeper.TryGetNpc(out NPC npc))
+                                this.AddFriendshipPoints(farmer, npc, bonusPoints);
+                        }
+                        this.Monitor.Log($"Gained {bonusPoints} friendship from all store owners for completing {this.CurrentNumberOfCompletedBundles} {(this.CurrentNumberOfCompletedBundles > 1 ? "Bundles" : "Bundle")}: {farmer.Name}", LogLevel.Info);
+                        farmerData.HasGottenInitialUjimaBonus = true;
+                    }
+                    // add initial items shipped bonus
+                    if (!farmerData.HasGottenInitialKuumbaBonus)
+                    {
+                        int uniqueItemsShipped = farmer.basicShipped.Count();
+                        int bonusPoints = this.Config.KuumbaBonus * uniqueItemsShipped;
+                        Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
+                        this.Monitor.Log($"Gained {bonusPoints} friendship for shipping {uniqueItemsShipped} unique {(uniqueItemsShipped != 1 ? "items" : "item")}: {farmer.Name}", LogLevel.Info);
+                        farmerData.HasGottenInitialKuumbaBonus = true;
+                    }
                 }
             }
         }
@@ -233,12 +248,11 @@ namespace SpaceBaby.PartOfTheCommunity
             this.IsReady = false;
             this.PlayerData = null;
             this.Characters = null;
-            this.HasEnteredEvent = false;
-            this.HasRecentlyCompletedQuest = false;
             this.CurrentNumberOfCompletedBundles = 0;
             this.CurrentNumberOfCompletedDailyQuests = 0;
-            this.CurrentUniqueItemsShipped = 0;
-            this.DaysAfterCompletingLastDailyQuest = 0;
+            
+            // Clear all player session data
+            PlayerSession.ClearAll();
         }
 
         private static List<Character> AreThereCharactersWithinDistance(Vector2 tile, int tilesAway, GameLocation location)
@@ -260,133 +274,179 @@ namespace SpaceBaby.PartOfTheCommunity
             if (!Context.IsWorldReady || !this.IsReady)
                 return;
 
-            foreach (KeyValuePair<string, Friendship> pair in Game1.player.friendshipData.Pairs)
+            foreach (Farmer farmer in Game1.getAllFarmers())
             {
-                // get friend info
-				if ( pair.Key == null ) 
-					continue;
-				
-                if (!this.Characters.TryGetValue(pair.Key, out CharacterInfo friend))
-                    continue;
-
-                // get friendship
-                Friendship friendship = pair.Value;
-                if (friendship.IsDivorced())
-                    continue;
-
-                // track gift
-                if (friendship.GiftsToday == 1)
-                    friend.ReceivedGift = true;
-
-                // track talk & apply nearby NPC bonuses
-                if (Game1.player.hasTalkedToFriendToday(friend.Name))
+                // get farmer session and data - ensure both exist
+                var session = PlayerSession.GetSession(farmer);
+                var farmerData = this.GetPlayerData(farmer); // This handles lazy initialization
+                
+                // For farmers who joined after DayStarted, ensure they get proper daily quest counter advancement
+                // Check if this farmer missed the daily increment (DaysSinceDailyQuest should advance daily)
+                bool isMissingDailyAdvancement = session.DaysSinceDailyQuest == 0 && !session.HasTrackedDailyQuest;
+                if (isMissingDailyAdvancement)
                 {
-                    if (!friend.HasTalked)
-                    {
-                        List<Character> charactersWithinDistance = ModEntry.AreThereCharactersWithinDistance(Game1.player.Tile, 20, Game1.player.currentLocation);
-                        foreach (Character nearbyNpc in charactersWithinDistance)
-                        {
-                            // get nearby character's info
-                            if (nearbyNpc == null || nearbyNpc.Name == friend.Name)
-                                continue;
-                            if (!this.Characters.TryGetValue(nearbyNpc.Name, out CharacterInfo nearbyCharacter))
-                                continue;
-                            if (!Game1.player.friendshipData.TryGetValue(nearbyNpc.Name, out Friendship nearbyFriendship))
-                                continue;
-
-                            // ignore if divorced
-                            if (nearbyFriendship.IsDivorced())
-                            {
-                                nearbyNpc.doEmote(Character.angryEmote);
-                                continue;
-                            }
-
-                            // count how often NPC overhears conversation
-                            nearbyCharacter.NearbyTalksSeen++;
-
-                            // add witness bonus when overhearing 2^n conversations
-                            if((nearbyCharacter.NearbyTalksSeen & (nearbyCharacter.NearbyTalksSeen-1)) == 0)
-                            {
-                                nearbyNpc.doEmote(Character.happyEmote);
-                                this.AddFriendshipPoints(nearbyNpc as NPC, this.Config.WitnessBonus);
-                                this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. +{this.Config.WitnessBonus} friendship: {nearbyNpc.Name}", LogLevel.Info);
-                            }
-                            else // log TalksSeen counter
-                                this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. {nearbyNpc.Name} has seen {nearbyCharacter.NearbyTalksSeen} talks", LogLevel.Info);
-                        }
-                        friend.HasTalked = true;
-                    }
+                    // This farmer likely joined after the daily reset - give them reasonable decay timing
+                    // We'll start them at 1 to avoid giving infinite bonuses but not overly penalize them
+                    session.DaysSinceDailyQuest = 1;
                 }
-            }
-
-            // check if shopping
-            //TODO: Add the Bus/Pam
-            if (Game1.activeClickableMenu is ShopMenu shopMenu && this.Shops.TryGetValue(Game1.currentLocation.Name, out string shopOwnerName))
-            {
-                // get shopkeeper
-				
-                if (!this.Characters.TryGetValue(shopOwnerName, out CharacterInfo shopkeeper))
-                    return;
-
-                // mark shopped
-                if (!shopkeeper.HasShopped && this.Helper.Reflection.GetField<Item>(shopMenu, "heldItem").GetValue() != null)
+                
+                foreach (KeyValuePair<string, Friendship> pair in farmer.friendshipData.Pairs)
                 {
-                    shopkeeper.HasShopped = true;
-                    if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
-                    {
-                        this.AddFriendshipPoints(shopkeeperNpc, this.Config.UjamaaBonus);
-                        this.Monitor.Log($"{shopOwnerName}: Pleasure doing business with you!", LogLevel.Info);
-                    }
-                }
-            }
-
-            // check if player entered a festival
-            if (!this.HasEnteredEvent && Game1.currentLocation?.currentEvent?.isFestival == true)
-            {
-                Utility.improveFriendshipWithEveryoneInRegion(Game1.player,this.Config.UmojaBonusFestival,"Town");
-                foreach (KeyValuePair<string, Friendship> pair in Game1.player.friendshipData.Pairs)
-                {
-					if ( pair.Key == null )
-						continue; 
-					
-                    string name = pair.Key;
-                    Friendship friendship = pair.Value;
-                    if (this.Characters.TryGetValue(name, out CharacterInfo character) && character.TryGetNpc(out NPC npc) && object.ReferenceEquals(npc.currentLocation, Game1.currentLocation))
-                        npc.doEmote(friendship.IsDivorced() ? Character.angryEmote : Character.happyEmote);
-                }
-                this.Monitor.Log("The villagers are glad you came!", LogLevel.Info);
-                this.HasEnteredEvent = true;
-            }
-
-            // check if player is getting married or having a baby
-            if ( !string.IsNullOrWhiteSpace(Game1.player.spouse) && (Game1.weddingToday || Game1.farmEvent is BirthingEvent) && !this.HasEnteredEvent )
-            {
-                this.Characters.TryGetValue(Game1.player.spouse, out CharacterInfo spouse);
-                foreach (CharacterRelationship relation in spouse.Relationships)
-                {
-                    if (!relation.Character.TryGetNpc(out NPC relationNpc))
+                    // get friend info
+                    if (pair.Key == null)
                         continue;
 
-                    if (relation.IsFamily)
+                    if (!this.Characters.TryGetValue(pair.Key, out CharacterInfo friend))
+                        continue;
+
+                    // get friendship
+                    Friendship friendship = pair.Value;
+                    if (friendship.IsDivorced())
+                        continue;
+
+                    // track gift
+                    if (friendship.GiftsToday == 1)
+                        session.ReceivedGift = true;
+
+                    // track talk & apply nearby NPC bonuses
+                    if (farmer.hasTalkedToFriendToday(friend.Name))
                     {
-                        this.AddFriendshipPoints(relationNpc, this.Config.UmojaBonusMarry);
-                        this.Monitor.Log($"{relation}: Married into the family, received +{this.Config.UmojaBonusMarry} friendship", LogLevel.Info);
-                    }
-                    else
-                    {
-                        this.AddFriendshipPoints(relationNpc, this.Config.UmojaBonusMarry / 2);
-                        this.Monitor.Log($"{relation}: Married a friend, received +{this.Config.UmojaBonusMarry / 2} friendship", LogLevel.Info);
+                        // Create unique key for this farmer-NPC conversation
+                        string conversationKey = $"{farmer.UniqueMultiplayerID}_{friend.Name}";
+                        
+                        // Only run nearby NPC logic if this specific conversation hasn't been processed yet today
+                        if (!session.NearbyTalksSeen.Contains($"processed_{conversationKey}"))
+                        {
+                            List<Character> charactersWithinDistance = ModEntry.AreThereCharactersWithinDistance(farmer.Tile, 20, farmer.currentLocation);
+                            foreach (Character nearbyNpc in charactersWithinDistance)
+                            {
+                                // get nearby character's info
+                                if (nearbyNpc == null || nearbyNpc.Name == friend.Name)
+                                    continue;
+                                if (!this.Characters.TryGetValue(nearbyNpc.Name, out CharacterInfo nearbyCharacter))
+                                    continue;
+                                if (!farmer.friendshipData.TryGetValue(nearbyNpc.Name, out Friendship nearbyFriendship))
+                                    continue;
+
+                                // ignore if divorced
+                                if (nearbyFriendship.IsDivorced())
+                                {
+                                    nearbyNpc.doEmote(Character.angryEmote);
+                                    continue;
+                                }
+
+                                // get unique key for this nearby talk
+                                string nearbyTalkKey = $"{nearbyNpc.Name}_{friend.Name}";
+                                
+                                // add to seen talks (for tracking unique pairs)
+                                session.NearbyTalksSeen.Add(nearbyTalkKey);
+                                
+                                // increment witness count for this NPC (this is the actual counter for bonuses)
+                                if (!session.WitnessCount.ContainsKey(nearbyNpc.Name))
+                                    session.WitnessCount[nearbyNpc.Name] = 0;
+                                session.WitnessCount[nearbyNpc.Name]++;
+                                
+                                int nearbyTalkCount = session.WitnessCount[nearbyNpc.Name];
+
+                                // add witness bonus when overhearing 2^n conversations
+                                if ((nearbyTalkCount & (nearbyTalkCount - 1)) == 0)
+                                {
+                                    nearbyNpc.doEmote(Character.happyEmote);
+                                    this.AddFriendshipPoints(farmer, nearbyNpc as NPC, this.Config.WitnessBonus);
+                                    this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. +{this.Config.WitnessBonus} friendship: {nearbyNpc.Name}", LogLevel.Info);
+                                }
+                                else // log TalksSeen counter
+                                    this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. {nearbyNpc.Name} has seen {nearbyTalkCount} talks", LogLevel.Info);
+                            }
+                            
+                            // Mark this specific conversation as processed
+                            session.NearbyTalksSeen.Add($"processed_{conversationKey}");
+                            session.HasTalked = true; // Keep for any other general tracking needs
+                        }
                     }
                 }
-                this.HasEnteredEvent = true;
-            }
 
-            // check if player completed daily quest
-            if (Game1.stats.QuestsCompleted > this.CurrentNumberOfCompletedDailyQuests)
-            {
-                this.CurrentNumberOfCompletedDailyQuests = Game1.stats.QuestsCompleted;
-                this.DaysAfterCompletingLastDailyQuest = 0;
-                this.HasRecentlyCompletedQuest = true;
+                // check if shopping
+                //TODO: Add the Bus/Pam
+                if (Game1.activeClickableMenu is ShopMenu shopMenu && this.Shops.TryGetValue(Game1.currentLocation.Name, out string shopOwnerName))
+                {
+                    // get shopkeeper
+                    if (!this.Characters.TryGetValue(shopOwnerName, out CharacterInfo shopkeeper))
+                        continue;
+
+                    // Create unique key for this farmer-shopkeeper interaction
+                    string shopKey = $"shop_{farmer.UniqueMultiplayerID}_{shopOwnerName}";
+
+                    // mark shopped - check if this specific shopkeeper has been visited by this farmer today
+                    if (!session.NearbyTalksSeen.Contains(shopKey) && this.Helper.Reflection.GetField<Item>(shopMenu, "heldItem").GetValue() != null)
+                    {
+                        // Mark this shopkeeper as visited by this farmer
+                        session.NearbyTalksSeen.Add(shopKey);
+                        session.HasShopped = true; // Keep for any general tracking needs
+                        
+                        if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
+                        {
+                            this.AddFriendshipPoints(farmer, shopkeeperNpc, this.Config.UjamaaBonus);
+                            this.Monitor.Log($"{shopOwnerName}: Pleasure doing business with you!", LogLevel.Info);
+                        }
+                    }
+                }
+
+                // check if player entered a festival
+                if (!session.HasEnteredFestival && Game1.currentLocation?.currentEvent?.isFestival == true)
+                {
+                    Utility.improveFriendshipWithEveryoneInRegion(farmer, this.Config.UmojaBonusFestival, "Town");
+                    foreach (KeyValuePair<string, Friendship> pair in farmer.friendshipData.Pairs)
+                    {
+                        if (pair.Key == null)
+                            continue;
+
+                        string name = pair.Key;
+                        Friendship friendship = pair.Value;
+                        if (this.Characters.TryGetValue(name, out CharacterInfo character) && character.TryGetNpc(out NPC npc) && object.ReferenceEquals(npc.currentLocation, Game1.currentLocation))
+                            npc.doEmote(friendship.IsDivorced() ? Character.angryEmote : Character.happyEmote);
+                    }
+                    this.Monitor.Log("The villagers are glad you came!", LogLevel.Info);
+                    session.HasEnteredFestival = true;
+                }
+
+                // check if player is getting married or having a baby
+                if (!string.IsNullOrWhiteSpace(farmer.spouse) && (Game1.weddingToday || Game1.farmEvent is BirthingEvent) && !session.HasProcessedWeddingOrBirth)
+                {
+                    if (this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse) && spouse != null)
+                    {
+                        foreach (CharacterRelationship relation in spouse.Relationships)
+                        {
+                            if (!relation.Character.TryGetNpc(out NPC relationNpc))
+                                continue;
+
+                            if (relation.IsFamily)
+                            {
+                                this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry);
+                                this.Monitor.Log($"{relation}: Married into the family, received +{this.Config.UmojaBonusMarry} friendship", LogLevel.Info);
+                            }
+                            else
+                            {
+                                this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry / 2);
+                                this.Monitor.Log($"{relation}: Married a friend, received +{this.Config.UmojaBonusMarry / 2} friendship", LogLevel.Info);
+                            }
+                        }
+                    }
+                    session.HasProcessedWeddingOrBirth = true;
+                }
+
+                // check if player completed daily quest - track per farmer, not globally
+                uint farmerQuestCount = farmer.stats.QuestsCompleted;
+                uint lastKnownCount = farmerData.LastKnownQuestCount ?? farmerQuestCount; // Use current count if null to prevent false detection
+                
+                if (farmerQuestCount > lastKnownCount)
+                {
+                    session.DaysSinceDailyQuest = 0;
+                    session.HasTrackedDailyQuest = true;
+                }
+                
+                // Always update LastKnownQuestCount to keep sessions in sync
+                farmerData.LastKnownQuestCount = farmerQuestCount;
             }
         }
 
@@ -395,79 +455,96 @@ namespace SpaceBaby.PartOfTheCommunity
         /// <param name="e">The event data.</param>
         private void OnSaving(object sender, SavingEventArgs e)
         {
-            // bonus for giving gifts to an NPC's friend/relative
-            foreach (CharacterInfo character in this.Characters.Values)
+            foreach (Farmer farmer in Game1.getAllFarmers())
             {
-                if (!character.TryGetNpc(out NPC npc))
-                    continue;
 
-                // gifted relations bonus
-                int relationsGifted = character.Relationships.Count(p => p.Character.ReceivedGift);
-                if (relationsGifted > 0)
+                // bonus for giving gifts to an NPC's friend/relative
+                var session = PlayerSession.GetSession(farmer);
+                foreach (CharacterInfo character in this.Characters.Values)
                 {
-                    this.AddFriendshipPoints(npc, this.Config.StorytellerBonus * relationsGifted);
-                    this.Monitor.Log($"{character.Name}: Friendship raised {this.Config.StorytellerBonus * relationsGifted} for gifting to someone they love.", LogLevel.Info);
-                }
-            }
+                    if (!character.TryGetNpc(out NPC npc))
+                        continue;
 
-            // extended family bonus for gifting spouse/child
-            if (!string.IsNullOrWhiteSpace(Game1.player.spouse) && this.Characters.TryGetValue(Game1.player.Name, out CharacterInfo player) && this.Characters.TryGetValue(Game1.player.spouse, out CharacterInfo spouse))
-            {
-                bool giftedFamily = player.Relationships.Any(p => p.Character.ReceivedGift && p.IsFamily);
-                if (giftedFamily)
-                {
-                    foreach (CharacterRelationship relation in spouse.Relationships)
+                    // Check if this farmer gave gifts to this character's relationships
+                    int relationsGifted = character.Relationships.Count(p => 
+                        farmer.friendshipData.ContainsKey(p.Character.Name) && 
+                        farmer.friendshipData[p.Character.Name].GiftsToday > 0);
+                    
+                    if (relationsGifted > 0)
                     {
-                        if (relation.Character.TryGetNpc(out NPC relationNpc) && relation.IsFamily)
+                        this.AddFriendshipPoints(farmer, npc, this.Config.StorytellerBonus * relationsGifted);
+                        this.Monitor.Log($"{character.Name}: Friendship raised {this.Config.StorytellerBonus * relationsGifted} for gifting to someone they love.", LogLevel.Info);
+                    }
+                }
+
+                // extended family bonus for gifting spouse/child
+                if (!string.IsNullOrWhiteSpace(farmer.spouse) && this.Characters.TryGetValue(farmer.Name, out CharacterInfo player) && this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse))
+                {
+                    bool giftedFamily = false;
+                    foreach (CharacterRelationship relation in player.Relationships)
+                    {
+                        if (relation.IsFamily && farmer.friendshipData.ContainsKey(relation.Character.Name) && farmer.friendshipData[relation.Character.Name].GiftsToday > 0)
                         {
-                            this.AddFriendshipPoints(relationNpc, this.Config.UmojaBonus);
-                            this.Monitor.Log($"{relation}: Friendship raised {this.Config.UmojaBonus} for loving your family.", LogLevel.Info);
+                            giftedFamily = true;
+                            break;
+                        }
+                    }
+                    
+                    if (giftedFamily)
+                    {
+                        foreach (CharacterRelationship relation in spouse.Relationships)
+                        {
+                            if (relation.Character.TryGetNpc(out NPC relationNpc) && relation.IsFamily)
+                            {
+                                this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonus);
+                                this.Monitor.Log($"{relation}: Friendship raised {this.Config.UmojaBonus} for loving your family.", LogLevel.Info);
+                            }
                         }
                     }
                 }
-            }
 
-            // bonus for new completed bundles
-            CommunityCenter communityCenter = (CommunityCenter)Game1.getLocationFromName("CommunityCenter");
-            int totalBundles = communityCenter.numberOfCompleteBundles();
-            if (this.CurrentNumberOfCompletedBundles < totalBundles)
-            {
-                int newBundles = totalBundles - this.CurrentNumberOfCompletedBundles;
-                int bonusPoints = this.Config.UjimaBonus * newBundles;
-                foreach (CharacterInfo shopkeeper in this.Characters.Values.Where(p => p.IsShopOwner))
+                // bonus for new completed bundles
+                CommunityCenter communityCenter = (CommunityCenter)Game1.getLocationFromName("CommunityCenter");
+                int totalBundles = communityCenter.numberOfCompleteBundles();
+                if (this.CurrentNumberOfCompletedBundles < totalBundles)
                 {
-                    if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
-                        this.AddFriendshipPoints(shopkeeperNpc, bonusPoints);
+                    int newBundles = totalBundles - this.CurrentNumberOfCompletedBundles;
+                    int bonusPoints = this.Config.UjimaBonus * newBundles;
+                    foreach (CharacterInfo shopkeeper in this.Characters.Values.Where(p => p.IsShopOwner))
+                    {
+                        if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
+                            this.AddFriendshipPoints(farmer, shopkeeperNpc, bonusPoints);
+                    }
+                    this.Monitor.Log($"Gained {bonusPoints} friendship with all store owners for completing {newBundles} bundles today.", LogLevel.Info);
                 }
-                this.Monitor.Log($"Gained {bonusPoints} friendship with all store owners for completing {newBundles} bundles today.", LogLevel.Info);
-            }
 
-            // bonus for completed daily quests
-            if (this.DaysAfterCompletingLastDailyQuest < 3 && this.HasRecentlyCompletedQuest)
-            {
-                int bonusPoints = this.Config.UjimaBonus / (int)Math.Pow(2, this.DaysAfterCompletingLastDailyQuest);
-                Utility.improveFriendshipWithEveryoneInRegion(Game1.player, bonusPoints, "Town");
-                this.Monitor.Log($"Gained {bonusPoints} friendship with everyone for completing a daily quest.", LogLevel.Info);
-            }
-            else
-            {
-                if (this.DaysAfterCompletingLastDailyQuest >= 3)
-                    this.HasRecentlyCompletedQuest = false;
-            }
-            if (!Utility.isFestivalDay(Game1.dayOfMonth + 1, Game1.season))
-                this.DaysAfterCompletingLastDailyQuest++;
+                // bonus for completed daily quests
+                if (session.DaysSinceDailyQuest < 3 && session.HasTrackedDailyQuest)
+                {
+                    int bonusPoints = this.Config.UjimaBonus / (int)Math.Pow(2, session.DaysSinceDailyQuest);
+                    Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
+                    this.Monitor.Log($"Gained {bonusPoints} friendship with everyone for completing a daily quest.", LogLevel.Info);
+                }
+                else
+                {
+                    if (session.DaysSinceDailyQuest >= 3)
+                        session.HasTrackedDailyQuest = false;
+                }
 
-            // bonus for new shipped items
-            if (Game1.player.basicShipped.Count() > this.CurrentUniqueItemsShipped)
-            {
-                int bonusPoints = this.Config.KuumbaBonus * (Game1.player.basicShipped.Count() - this.CurrentUniqueItemsShipped);
-                Utility.improveFriendshipWithEveryoneInRegion(Game1.player, bonusPoints, "Town");
-                this.Monitor.Log($"Gained {bonusPoints} friendship with everyone for shipping new items.", LogLevel.Info);
-            }
+                // bonus for new shipped items
+                int currentShippedCount = farmer.basicShipped.Count();
+                if (currentShippedCount > farmerData.LastKnownUniqueItemsShipped)
+                {
+                    int bonusPoints = this.Config.KuumbaBonus * (currentShippedCount - farmerData.LastKnownUniqueItemsShipped);
+                    Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
+                    this.Monitor.Log($"Gained {bonusPoints} friendship with everyone for shipping new items.", LogLevel.Info);
+                    farmerData.LastKnownUniqueItemsShipped = currentShippedCount;
+                }
 
-            // save player data
-            if (Context.IsMainPlayer)
-                this.Helper.Data.WriteSaveData("data", this.PlayerData);
+                // save player data
+                if (Context.IsMainPlayer && this.PlayerData != null)
+                    this.Helper.Data.WriteSaveData("data", this.PlayerData);
+            }
         }
 
         /// <summary>Get all available characters.</summary>
@@ -631,7 +708,7 @@ namespace SpaceBaby.PartOfTheCommunity
             foreach (NPC npc in Utility.getAllCharacters())
             {
                 if (npc.IsVillager && !characters.ContainsKey(npc.Name))
-                    characters[npc.Name] = new CharacterInfo(npc.Name, npc.Gender == Gender.Male, type: CharacterType.Child);
+                    characters[npc.Name] = new CharacterInfo(npc.Name, npc.Gender == Gender.Male, type: CharacterType.Villager);
             }
 
             // add children
@@ -706,12 +783,54 @@ namespace SpaceBaby.PartOfTheCommunity
         }
 
         /// <summary>Add friendship points with an NPC, if the NPC exists.</summary>
+        /// <param name="farmer">The farmer instance.</param>
         /// <param name="npc">The NPC instance.</param>
         /// <param name="points">The number of points to add.</param>
-        private void AddFriendshipPoints(NPC npc, int points)
+        private void AddFriendshipPoints(Farmer farmer, NPC npc, int points)
         {
-            if (npc != null) // e.g. Kent might not have arrived yet
-                Game1.player.changeFriendship(points, npc);
+            if (npc != null && farmer != null) // e.g. Kent might not have arrived yet
+                farmer.changeFriendship(points, npc);
+        }
+
+        private PlayerData GetPlayerData(Farmer farmer)
+        {
+            long id = farmer?.UniqueMultiplayerID ?? 0;
+            if (!this.PlayerData.TryGetValue(id, out PlayerData playerData))
+            {
+                playerData = new PlayerData();
+                this.PlayerData[id] = playerData;
+            }
+
+            // Lazy initialization for quest tracking to handle farmhands joining anytime
+            // Initialize to current count to prevent false "quest completed" detection
+            if (playerData.LastKnownQuestCount == null)
+            {
+                playerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
+            }
+
+            return playerData;
+        }
+
+        private IDictionary<long, PlayerData> LoadPlayerData()
+        {
+            IDictionary<long, PlayerData> data =
+                this.Helper.Data.ReadSaveData<Dictionary<long, PlayerData>>("data")
+                ?? this.Helper.Data.ReadJsonFile<Dictionary<long, PlayerData>>($"{Constants.SaveFolderName}/config.json");
+
+            if (data != null)
+                return data;
+
+            PlayerData legacy =
+                this.Helper.Data.ReadSaveData<PlayerData>("data")
+                ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json");
+
+            if (legacy != null)
+                return new Dictionary<long, PlayerData>
+                {
+                    [Game1.player.UniqueMultiplayerID] = legacy
+                };
+
+            return new Dictionary<long, PlayerData>();
         }
     }
 }
