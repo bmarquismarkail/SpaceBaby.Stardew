@@ -6,7 +6,7 @@ using StardewValley;
 namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>Tracked data for an NPC.</summary>
-    internal class CharacterInfo
+    public class CharacterInfo
     {
         /*********
         ** Accessors

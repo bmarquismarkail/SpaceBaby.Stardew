@@ -1,0 +1,36 @@
+{
+  "Name": "Example Character Pack",
+  "Author": "Your Name Here",
+  "Version": "1.0.0",
+  "Description": "An example character pack showing how to add custom characters and relationships",
+  "Characters": [
+    {
+      "Name": "ExampleCharacter",
+      "IsMale": true,
+      "Type": "Villager"
+    },
+    {
+      "Name": "AnotherExample",
+      "IsMale": false,
+      "Type": "Villager"
+    }
+  ],
+  "Relationships": [
+    {
+      "CharacterA": "ExampleCharacter",
+      "RelationshipA": "Brother",
+      "CharacterB": "AnotherExample",
+      "RelationshipB": "Sister"
+    }
+  ],
+  "Friendships": [
+    {
+      "CharacterA": "ExampleCharacter",
+      "CharacterB": "Sam"
+    },
+    {
+      "CharacterA": "AnotherExample",
+      "CharacterB": "Abigail"
+    }
+  ]
+}
