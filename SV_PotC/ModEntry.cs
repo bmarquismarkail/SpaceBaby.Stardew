@@ -814,23 +814,41 @@ namespace SpaceBaby.PartOfTheCommunity
 
         private IDictionary<long, PlayerData> LoadPlayerData()
         {
-            IDictionary<long, PlayerData> data =
-                this.Helper.Data.ReadSaveData<Dictionary<long, PlayerData>>("data")
-                ?? this.Helper.Data.ReadJsonFile<Dictionary<long, PlayerData>>($"{Constants.SaveFolderName}/config.json");
+            // Try reading the new format (dictionary keyed by multiplayer ID). If parsing fails
+            // (e.g. JSON is a single PlayerData object), catch and fall back to legacy handling.
+            try
+            {
+                IDictionary<long, PlayerData> data =
+                    this.Helper.Data.ReadSaveData<Dictionary<long, PlayerData>>("data")
+                    ?? this.Helper.Data.ReadJsonFile<Dictionary<long, PlayerData>>($"{Constants.SaveFolderName}/config.json");
 
-            if (data != null)
-                return data;
+                if (data != null)
+                    return data;
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"Could not read player data as Dictionary<long,PlayerData>: {ex.Message}. Trying legacy format.", LogLevel.Warn);
+            }
 
-            PlayerData legacy =
-                this.Helper.Data.ReadSaveData<PlayerData>("data")
-                ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json");
+            // Legacy single-player data (convert to dictionary for compatibility).
+            try
+            {
+                PlayerData legacy =
+                    this.Helper.Data.ReadSaveData<PlayerData>("data")
+                    ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json");
 
-            if (legacy != null)
-                return new Dictionary<long, PlayerData>
-                {
-                    [Game1.player.UniqueMultiplayerID] = legacy
-                };
+                if (legacy != null)
+                    return new Dictionary<long, PlayerData>
+                    {
+                        [Game1.player.UniqueMultiplayerID] = legacy
+                    };
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"Could not read legacy PlayerData: {ex.Message}", LogLevel.Warn);
+            }
 
+            // No data found — return empty dictionary.
             return new Dictionary<long, PlayerData>();
         }
     }
