@@ -1,7 +1,7 @@
 ﻿namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>Tracked data for an NPC relationship.</summary>
-    internal class CharacterRelationship
+    public class CharacterRelationship
     {
         /*********
         ** Accessors

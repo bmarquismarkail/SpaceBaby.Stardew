@@ -1,7 +1,7 @@
 ﻿namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>A relationship type.</summary>
-    internal enum Relationship
+    public enum Relationship
     {
         /****
         ** Siblings
