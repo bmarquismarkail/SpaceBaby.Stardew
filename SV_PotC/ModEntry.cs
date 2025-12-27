@@ -814,8 +814,7 @@ namespace SpaceBaby.PartOfTheCommunity
 
         private IDictionary<long, PlayerData> LoadPlayerData()
         {
-            // Try reading the new format (dictionary keyed by multiplayer ID). If parsing fails
-            // (e.g. JSON is a single PlayerData object), catch and fall back to legacy handling.
+            // 1) Try new/current format: Dictionary<long, PlayerData>
             try
             {
                 IDictionary<long, PlayerData> data =
@@ -827,10 +826,35 @@ namespace SpaceBaby.PartOfTheCommunity
             }
             catch (Exception ex)
             {
-                this.Monitor.Log($"Could not read player data as Dictionary<long,PlayerData>: {ex.Message}. Trying legacy format.", LogLevel.Warn);
+                this.Monitor.Log($"LoadPlayerData: couldn't read Dictionary<long,PlayerData> ({ex.Message}). Trying other formats.", LogLevel.Warn);
             }
 
-            // Legacy single-player data (convert to dictionary for compatibility).
+            // 2) Try a string-keyed dictionary (older/corrupted saves or keys stored as strings)
+            try
+            {
+                var stringKeyed =
+                    this.Helper.Data.ReadSaveData<Dictionary<string, PlayerData>>("data")
+                    ?? this.Helper.Data.ReadJsonFile<Dictionary<string, PlayerData>>($"{Constants.SaveFolderName}/config.json");
+
+                if (stringKeyed != null)
+                {
+                    var converted = new Dictionary<long, PlayerData>();
+                    foreach (var kv in stringKeyed)
+                    {
+                        if (long.TryParse(kv.Key, out long id))
+                            converted[id] = kv.Value;
+                        else
+                            converted[Game1.player.UniqueMultiplayerID] = kv.Value; // map unknown keys to the main player
+                    }
+                    return converted;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"LoadPlayerData: couldn't read Dictionary<string,PlayerData> ({ex.Message}). Trying legacy single-object format.", LogLevel.Warn);
+            }
+
+            // 3) Try legacy single PlayerData object and wrap it into a dictionary
             try
             {
                 PlayerData legacy =
@@ -845,10 +869,10 @@ namespace SpaceBaby.PartOfTheCommunity
             }
             catch (Exception ex)
             {
-                this.Monitor.Log($"Could not read legacy PlayerData: {ex.Message}", LogLevel.Warn);
+                this.Monitor.Log($"LoadPlayerData: couldn't read single PlayerData ({ex.Message}). Falling back to empty data.", LogLevel.Warn);
             }
 
-            // No data found — return empty dictionary.
+            // Nothing found or all parsing failed -> return empty dictionary
             return new Dictionary<long, PlayerData>();
         }
     }
