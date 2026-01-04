@@ -257,12 +257,18 @@ namespace SpaceBaby.PartOfTheCommunity
 
         private static List<Character> AreThereCharactersWithinDistance(Vector2 tile, int tilesAway, GameLocation location)
         {
-            List<Character> charactersWithinDistance = new List<Character>();
+            var charactersWithinDistance = new List<Character>();
+
+            // Guard against null location or missing character list (prevents NREs when farmer.currentLocation is null or not loaded).
+            if (location == null || location.characters == null)
+                return charactersWithinDistance;
+
             foreach (NPC character in location.characters)
             {
                 if (character != null && Vector2.Distance(character.Tile, tile) <= tilesAway)
                     charactersWithinDistance.Add(character);
             }
+
             return charactersWithinDistance;
         }
 
