@@ -151,6 +151,15 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         {
             try
             {
+                // Try to load the new flat format first
+                CharacterPackFlat flatPack = this.Helper.Data.ReadJsonFile<CharacterPackFlat>(relativePath);
+                if (flatPack?.Characters != null)
+                {
+                    this.LoadFlatCharacterPack(flatPack, relativePath);
+                    return;
+                }
+
+                // Fall back to the old format
                 CharacterPack pack = this.Helper.Data.ReadJsonFile<CharacterPack>(relativePath);
                 if (pack == null)
                 {
@@ -161,55 +170,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     return;
                 }
 
-                this.Monitor.Log($"Loading character pack: {pack.Name} v{pack.Version} by {pack.Author}", LogLevel.Info);
-
-                // Load characters
-                foreach (var charData in pack.Characters ?? new List<CharacterData>())
-                {
-                    if (string.IsNullOrWhiteSpace(charData.Name))
-                    {
-                        this.Monitor.Log($"Skipping character with null or empty name in pack '{pack.Name}'", LogLevel.Warn);
-                        continue;
-                    }
-
-                    if (!this.Characters.ContainsKey(charData.Name))
-                    {
-                        var character = new CharacterInfo(charData.Name, charData.IsMale, charData.Type);
-                        this.Characters[charData.Name] = character;
-                    }
-                }
-
-                // Load relationships
-                foreach (var relData in pack.Relationships ?? new List<RelationshipData>())
-                {
-                    if (this.Characters.TryGetValue(relData.CharacterA, out CharacterInfo charA) &&
-                        this.Characters.TryGetValue(relData.CharacterB, out CharacterInfo charB))
-                    {
-                        charA.AddRelationship(relData.RelationshipA, charB);
-                        charB.AddRelationship(relData.RelationshipB, charA);
-                    }
-                    else
-                    {
-                        this.Monitor.Log($"Skipping relationship between '{relData.CharacterA}' and '{relData.CharacterB}': one or both characters not found", LogLevel.Warn);
-                    }
-                }
-
-                // Load friendships
-                foreach (var friendData in pack.Friendships ?? new List<FriendshipData>())
-                {
-                    if (this.Characters.TryGetValue(friendData.CharacterA, out CharacterInfo charA) &&
-                        this.Characters.TryGetValue(friendData.CharacterB, out CharacterInfo charB))
-                    {
-                        charA.AddRelationship(Relationship.Friend, charB);
-                        charB.AddRelationship(Relationship.Friend, charA);
-                    }
-                    else
-                    {
-                        this.Monitor.Log($"Skipping friendship between '{friendData.CharacterA}' and '{friendData.CharacterB}': one or both characters not found", LogLevel.Warn);
-                    }
-                }
-
-                this.Monitor.Log($"Loaded {pack.Characters?.Count ?? 0} characters, {pack.Relationships?.Count ?? 0} relationships, and {pack.Friendships?.Count ?? 0} friendships from '{relativePath}'", LogLevel.Debug);
+                this.LoadLegacyCharacterPack(pack, relativePath);
             }
             catch (Exception ex)
             {
@@ -217,6 +178,149 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                 if (isRequired)
                     throw;
             }
+        }
+
+        /// <summary>Load a character pack from the new flat format.</summary>
+        /// <param name="pack">The character pack data.</param>
+        /// <param name="relativePath">The file path for logging.</param>
+        private void LoadFlatCharacterPack(CharacterPackFlat pack, string relativePath)
+        {
+            this.Monitor.Log($"Loading flat character pack from '{relativePath}'", LogLevel.Info);
+
+            // First pass: Load all characters
+            foreach (var kvp in pack.Characters)
+            {
+                string characterKey = kvp.Key;
+                CharacterEntry entry = kvp.Value;
+
+                if (string.IsNullOrWhiteSpace(entry.DisplayName))
+                {
+                    this.Monitor.Log($"Skipping character '{characterKey}' with null or empty display name", LogLevel.Warn);
+                    continue;
+                }
+
+                if (!this.Characters.ContainsKey(entry.DisplayName))
+                {
+                    bool isMale = entry.Gender?.ToUpper() == "M";
+                    CharacterType type = Enum.TryParse<CharacterType>(entry.Type, out var parsedType) ? parsedType : CharacterType.Villager;
+                    
+                    var character = new CharacterInfo(entry.DisplayName, isMale, type);
+                    this.Characters[entry.DisplayName] = character;
+                }
+            }
+
+            // Second pass: Load relationships and friendships
+            foreach (var kvp in pack.Characters)
+            {
+                string characterKey = kvp.Key;
+                CharacterEntry entry = kvp.Value;
+
+                if (string.IsNullOrWhiteSpace(entry.DisplayName) || !this.Characters.TryGetValue(entry.DisplayName, out CharacterInfo character))
+                    continue;
+
+                // Load relationships
+                foreach (var relKvp in entry.Relationships ?? new Dictionary<string, string>())
+                {
+                    string otherCharKey = relKvp.Key;
+                    string relationshipStr = relKvp.Value;
+
+                    // Find the other character by their key in the pack
+                    if (pack.Characters.TryGetValue(otherCharKey, out CharacterEntry otherEntry) &&
+                        this.Characters.TryGetValue(otherEntry.DisplayName, out CharacterInfo otherCharacter))
+                    {
+                        if (Enum.TryParse<Relationship>(relationshipStr, true, out Relationship relationship))
+                        {
+                            character.AddRelationship(relationship, otherCharacter);
+                        }
+                        else
+                        {
+                            this.Monitor.Log($"Unknown relationship type '{relationshipStr}' for {entry.DisplayName} -> {otherEntry.DisplayName}", LogLevel.Warn);
+                        }
+                    }
+                    else
+                    {
+                        this.Monitor.Log($"Skipping relationship: character '{otherCharKey}' not found for {entry.DisplayName}", LogLevel.Warn);
+                    }
+                }
+
+                // Load friendships
+                foreach (var friendKvp in entry.Friends ?? new Dictionary<string, bool>())
+                {
+                    string friendKey = friendKvp.Key;
+                    bool isFriend = friendKvp.Value;
+
+                    if (!isFriend) continue;
+
+                    // Find the friend character by their key in the pack
+                    if (pack.Characters.TryGetValue(friendKey, out CharacterEntry friendEntry) &&
+                        this.Characters.TryGetValue(friendEntry.DisplayName, out CharacterInfo friendCharacter))
+                    {
+                        character.AddRelationship(Relationship.Friend, friendCharacter);
+                    }
+                    else
+                    {
+                        this.Monitor.Log($"Skipping friendship: character '{friendKey}' not found for {entry.DisplayName}", LogLevel.Warn);
+                    }
+                }
+            }
+
+            this.Monitor.Log($"Loaded {pack.Characters.Count} characters from flat format in '{relativePath}'", LogLevel.Debug);
+        }
+
+        /// <summary>Load a character pack from the legacy format.</summary>
+        /// <param name="pack">The character pack data.</param>
+        /// <param name="relativePath">The file path for logging.</param>
+        private void LoadLegacyCharacterPack(CharacterPack pack, string relativePath)
+        {
+            this.Monitor.Log($"Loading legacy character pack: {pack.Name} v{pack.Version} by {pack.Author}", LogLevel.Info);
+
+            // Load characters
+            foreach (var charData in pack.Characters ?? new List<CharacterData>())
+            {
+                if (string.IsNullOrWhiteSpace(charData.Name))
+                {
+                    this.Monitor.Log($"Skipping character with null or empty name in pack '{pack.Name}'", LogLevel.Warn);
+                    continue;
+                }
+
+                if (!this.Characters.ContainsKey(charData.Name))
+                {
+                    var character = new CharacterInfo(charData.Name, charData.IsMale, charData.Type);
+                    this.Characters[charData.Name] = character;
+                }
+            }
+
+            // Load relationships
+            foreach (var relData in pack.Relationships ?? new List<RelationshipData>())
+            {
+                if (this.Characters.TryGetValue(relData.CharacterA, out CharacterInfo charA) &&
+                    this.Characters.TryGetValue(relData.CharacterB, out CharacterInfo charB))
+                {
+                    charA.AddRelationship(relData.RelationshipA, charB);
+                    charB.AddRelationship(relData.RelationshipB, charA);
+                }
+                else
+                {
+                    this.Monitor.Log($"Skipping relationship between '{relData.CharacterA}' and '{relData.CharacterB}': one or both characters not found", LogLevel.Warn);
+                }
+            }
+
+            // Load friendships
+            foreach (var friendData in pack.Friendships ?? new List<FriendshipData>())
+            {
+                if (this.Characters.TryGetValue(friendData.CharacterA, out CharacterInfo charA) &&
+                    this.Characters.TryGetValue(friendData.CharacterB, out CharacterInfo charB))
+                {
+                    charA.AddRelationship(Relationship.Friend, charB);
+                    charB.AddRelationship(Relationship.Friend, charA);
+                }
+                else
+                {
+                    this.Monitor.Log($"Skipping friendship between '{friendData.CharacterA}' and '{friendData.CharacterB}': one or both characters not found", LogLevel.Warn);
+                }
+            }
+
+            this.Monitor.Log($"Loaded {pack.Characters?.Count ?? 0} characters, {pack.Relationships?.Count ?? 0} relationships, and {pack.Friendships?.Count ?? 0} friendships from '{relativePath}'", LogLevel.Debug);
         }
     }
 }
