@@ -257,12 +257,18 @@ namespace SpaceBaby.PartOfTheCommunity
 
         private static List<Character> AreThereCharactersWithinDistance(Vector2 tile, int tilesAway, GameLocation location)
         {
-            List<Character> charactersWithinDistance = new List<Character>();
+            var charactersWithinDistance = new List<Character>();
+
+            // Guard against null location or missing character list (prevents NREs when farmer.currentLocation is null or not loaded).
+            if (location == null || location.characters == null)
+                return charactersWithinDistance;
+
             foreach (NPC character in location.characters)
             {
                 if (character != null && Vector2.Distance(character.Tile, tile) <= tilesAway)
                     charactersWithinDistance.Add(character);
             }
+
             return charactersWithinDistance;
         }
 
@@ -814,23 +820,65 @@ namespace SpaceBaby.PartOfTheCommunity
 
         private IDictionary<long, PlayerData> LoadPlayerData()
         {
-            IDictionary<long, PlayerData> data =
-                this.Helper.Data.ReadSaveData<Dictionary<long, PlayerData>>("data")
-                ?? this.Helper.Data.ReadJsonFile<Dictionary<long, PlayerData>>($"{Constants.SaveFolderName}/config.json");
+            // 1) Try new/current format: Dictionary<long, PlayerData>
+            try
+            {
+                IDictionary<long, PlayerData> data =
+                    this.Helper.Data.ReadSaveData<Dictionary<long, PlayerData>>("data")
+                    ?? this.Helper.Data.ReadJsonFile<Dictionary<long, PlayerData>>($"{Constants.SaveFolderName}/config.json");
 
-            if (data != null)
-                return data;
+                if (data != null)
+                    return data;
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"LoadPlayerData: couldn't read Dictionary<long,PlayerData> ({ex.Message}). Trying other formats.", LogLevel.Warn);
+            }
 
-            PlayerData legacy =
-                this.Helper.Data.ReadSaveData<PlayerData>("data")
-                ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json");
+            // 2) Try a string-keyed dictionary (older/corrupted saves or keys stored as strings)
+            try
+            {
+                var stringKeyed =
+                    this.Helper.Data.ReadSaveData<Dictionary<string, PlayerData>>("data")
+                    ?? this.Helper.Data.ReadJsonFile<Dictionary<string, PlayerData>>($"{Constants.SaveFolderName}/config.json");
 
-            if (legacy != null)
-                return new Dictionary<long, PlayerData>
+                if (stringKeyed != null)
                 {
-                    [Game1.player.UniqueMultiplayerID] = legacy
-                };
+                    var converted = new Dictionary<long, PlayerData>();
+                    foreach (var kv in stringKeyed)
+                    {
+                        if (long.TryParse(kv.Key, out long id))
+                            converted[id] = kv.Value;
+                        else
+                            converted[Game1.player.UniqueMultiplayerID] = kv.Value; // map unknown keys to the main player
+                    }
+                    return converted;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"LoadPlayerData: couldn't read Dictionary<string,PlayerData> ({ex.Message}). Trying legacy single-object format.", LogLevel.Warn);
+            }
 
+            // 3) Try legacy single PlayerData object and wrap it into a dictionary
+            try
+            {
+                PlayerData legacy =
+                    this.Helper.Data.ReadSaveData<PlayerData>("data")
+                    ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json");
+
+                if (legacy != null)
+                    return new Dictionary<long, PlayerData>
+                    {
+                        [Game1.player.UniqueMultiplayerID] = legacy
+                    };
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"LoadPlayerData: couldn't read single PlayerData ({ex.Message}). Falling back to empty data.", LogLevel.Warn);
+            }
+
+            // Nothing found or all parsing failed -> return empty dictionary
             return new Dictionary<long, PlayerData>();
         }
     }
