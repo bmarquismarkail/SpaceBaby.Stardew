@@ -116,24 +116,53 @@ public class MyMod : Mod
 
 ## Loading Characters from JSON
 
-You can also create character packs using JSON files. Place them in the `Data` folder of the Part of the Community mod:
+You can create character packs using JSON files. Place them in the `Data` folder of the Part of the Community mod:
 
 ```json
 {
-  "Name": "My Character Pack",
-  "Author": "Your Name",
-  "Version": "1.0.0",
-  "Description": "Custom characters and relationships",
-  "Characters": [
-    { "Name": "MyCharacter", "IsMale": true, "Type": "Villager" }
-  ],
-  "Relationships": [
-    { "CharacterA": "MyCharacter", "RelationshipA": "Brother", "CharacterB": "Sam", "RelationshipB": "Brother" }
-  ],
-  "Friendships": [
-    { "CharacterA": "MyCharacter", "CharacterB": "Sebastian" }
-  ]
+  "characters": {
+    "mycharacter": {
+      "displayName": "MyCharacter",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "sam": "brother"
+      },
+      "friends": {
+        "sebastian": true
+      }
+    },
+    "anothercharacter": {
+      "displayName": "AnotherCharacter", 
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "mycharacter": "sister"
+      },
+      "friends": {
+        "abigail": true
+      }
+    }
+  }
 }
+```
+
+### JSON Structure Details
+
+- **Root object**: Contains a `characters` object
+- **Character keys**: Use lowercase names as keys (e.g., `"mycharacter"`)
+- **displayName**: The proper capitalized name shown in game
+- **gender**: `"M"` for male, `"F"` for female
+- **type**: Character type (`"Villager"`, `"Player"`, or `"Child"`)
+- **relationships**: Object where keys are other character keys and values are relationship types (lowercase)
+- **friends**: Object where keys are other character keys and values are `true`
+
+### Relationship Types (lowercase in JSON)
+
+Use these lowercase strings in the JSON relationships:
+
+- **Family**: `brother`, `sister`, `halfbrother`, `halfsister`, `son`, `daughter`, `stepson`, `stepdaughter`, `father`, `mother`, `stepfather`, `stepmother`, `grandfather`, `grandmother`, `greatgrandfather`, `greatgrandmother`, `grandson`, `granddaughter`, `greatgrandson`, `greatgranddaughter`, `husband`, `wife`, `uncle`, `aunt`, `nephew`, `niece`, `cousin`
+- **Other**: `friend`, `godfather`, `godmother`, `godson`, `goddaughter`, `wartorn`
 ```
 
 ## Notes
