@@ -1,0 +1,235 @@
+using StardewModdingAPI;
+using StardewValley;
+using SV_InventorySystem;
+
+namespace YourMod;
+
+/// <summary>
+/// Example of how to integrate with SV_InventorySystem using the SMAPI reflection approach
+/// This approach is recommended for better compatibility and easier integration
+/// </summary>
+public class InventoryIntegrationExample
+{
+    private IModHelper _helper;
+    private IMonitor _monitor;
+
+    // Get the inventory system API
+    private ModEntry? _inventoryMod;
+    private SmapiReflectionHelper? _smapiHelper;
+
+    public InventoryIntegrationExample(IModHelper helper, IMonitor monitor)
+    {
+        _helper = helper;
+        _monitor = monitor;
+    }
+
+    /// <summary>
+    /// Call this in your mod's Entry method or GameLaunched event
+    /// </summary>
+    public void InitializeInventoryIntegration()
+    {
+        // Get the inventory mod instance
+        var inventoryModAPI = _helper.ModRegistry.GetApi<ModEntry>("YourUniqueID.SV_InventorySystem");
+        
+        if (inventoryModAPI == null)
+        {
+            _monitor.Log("SV_InventorySystem not found. Multi-inventory features disabled.", LogLevel.Warn);
+            return;
+        }
+
+        _inventoryMod = inventoryModAPI;
+        _smapiHelper = _inventoryMod.GetSmapiHelper();
+
+        if (_smapiHelper == null)
+        {
+            _monitor.Log("SMAPI reflection helper not available", LogLevel.Error);
+            return;
+        }
+
+        _monitor.Log("Successfully connected to SV_InventorySystem via SMAPI reflection", LogLevel.Info);
+    }
+
+    /// <summary>
+    /// Get the current item using the multi-inventory system (SMAPI reflection)
+    /// Use this instead of farmer.CurrentItem
+    /// </summary>
+    public Item? GetCurrentItem(Farmer farmer)
+    {
+        if (_smapiHelper == null || _inventoryMod?.GetMultiInventoryManager() == null)
+        {
+            // Fallback to original game behavior
+            return farmer.CurrentItem;
+        }
+
+        // Use SMAPI reflection to get current item with multi-inventory support
+        return _smapiHelper.GetCurrentItem(farmer, _inventoryMod.GetMultiInventoryManager());
+    }
+
+    /// <summary>
+    /// Get the active item using the multi-inventory system (SMAPI reflection)
+    /// Use this instead of farmer.ActiveItem
+    /// </summary>
+    public Item? GetActiveItem(Farmer farmer)
+    {
+        if (_smapiHelper == null || _inventoryMod?.GetMultiInventoryManager() == null)
+        {
+            // Fallback to original game behavior
+            return farmer.ActiveItem;
+        }
+
+        // Use SMAPI reflection to get active item with multi-inventory support
+        return _smapiHelper.GetActiveItem(farmer, _inventoryMod.GetMultiInventoryManager());
+    }
+
+    /// <summary>
+    /// Set the active item using the multi-inventory system (SMAPI reflection)
+    /// Use this instead of farmer.ActiveItem = item
+    /// </summary>
+    public void SetActiveItem(Farmer farmer, Item? item)
+    {
+        if (_smapiHelper == null || _inventoryMod?.GetMultiInventoryManager() == null)
+        {
+            // Fallback to original game behavior
+            farmer.ActiveItem = item;
+            return;
+        }
+
+        // Use SMAPI reflection to set active item with multi-inventory support
+        _smapiHelper.SetActiveItem(farmer, item, _inventoryMod.GetMultiInventoryManager());
+    }
+
+    /// <summary>
+    /// Example: Add an additional inventory to a farmer
+    /// </summary>
+    public bool AddInventoryToFarmer(Farmer farmer, int size = 36)
+    {
+        var inventoryManager = _inventoryMod?.GetMultiInventoryManager();
+        if (inventoryManager == null)
+        {
+            _monitor.Log("Cannot add inventory: MultiInventoryManager not available", LogLevel.Error);
+            return false;
+        }
+
+        var newInventoryId = inventoryManager.AddInventory(farmer, size);
+        _monitor.Log($"Added inventory {newInventoryId} with size {size} to farmer {farmer.Name}", LogLevel.Info);
+        return true;
+    }
+
+    /// <summary>
+    /// Example: Switch to a specific inventory
+    /// </summary>
+    public bool SwitchToInventory(Farmer farmer, int inventoryId)
+    {
+        var inventoryManager = _inventoryMod?.GetMultiInventoryManager();
+        if (inventoryManager == null)
+        {
+            return false;
+        }
+
+        return inventoryManager.SwitchToInventory(farmer, inventoryId);
+    }
+
+    /// <summary>
+    /// Example: Get information about all inventories for a farmer
+    /// </summary>
+    public void LogInventoryInfo(Farmer farmer)
+    {
+        var inventoryManager = _inventoryMod?.GetMultiInventoryManager();
+        if (inventoryManager == null)
+        {
+            return;
+        }
+
+        var currentId = inventoryManager.GetCurrentInventoryId(farmer);
+        var totalSize = inventoryManager.GetTotalInventorySize(farmer);
+
+        _monitor.Log($"Farmer {farmer.Name}: Current inventory {currentId}, Total size: {totalSize}", LogLevel.Info);
+    }
+
+    /// <summary>
+    /// Validation method to check if the integration is working
+    /// </summary>
+    public bool ValidateIntegration()
+    {
+        if (_inventoryMod == null)
+        {
+            _monitor.Log("Integration validation failed: InventoryMod not found", LogLevel.Error);
+            return false;
+        }
+
+        if (!_inventoryMod.IsUsingSmapiReflection())
+        {
+            _monitor.Log("Warning: InventoryMod is using Harmony patches instead of SMAPI reflection", LogLevel.Warn);
+            // Still functional, just using a different approach
+        }
+
+        var smapiHelper = _inventoryMod.GetSmapiHelper();
+        if (smapiHelper == null)
+        {
+            _monitor.Log("Integration validation failed: SmapiHelper not available", LogLevel.Error);
+            return false;
+        }
+
+        // Test reflection on the main player
+        if (!smapiHelper.ValidateReflection(Game1.player))
+        {
+            _monitor.Log("Integration validation failed: SMAPI reflection validation failed", LogLevel.Error);
+            return false;
+        }
+
+        _monitor.Log("Integration validation successful", LogLevel.Info);
+        return true;
+    }
+}
+
+/// <summary>
+/// Example of using the inventory integration in your mod's main class
+/// </summary>
+public class YourModEntry : Mod
+{
+    private InventoryIntegrationExample? _inventoryIntegration;
+
+    public override void Entry(IModHelper helper)
+    {
+        // Initialize inventory integration
+        _inventoryIntegration = new InventoryIntegrationExample(helper, this.Monitor);
+
+        // Initialize after all mods are loaded
+        helper.Events.GameLoop.GameLaunched += OnGameLaunched;
+    }
+
+    private void OnGameLaunched(object? sender, StardewModdingAPI.Events.GameLaunchedEventArgs e)
+    {
+        _inventoryIntegration?.InitializeInventoryIntegration();
+
+        // Validate the integration
+        _inventoryIntegration?.ValidateIntegration();
+    }
+
+    /// <summary>
+    /// Example of using multi-inventory in your mod's functionality
+    /// </summary>
+    private void ExampleUsage()
+    {
+        var player = Game1.player;
+
+        // Get current item using multi-inventory system
+        var currentItem = _inventoryIntegration?.GetCurrentItem(player);
+        if (currentItem != null)
+        {
+            this.Monitor.Log($"Player is holding: {currentItem.DisplayName}", LogLevel.Info);
+        }
+
+        // Add an additional inventory
+        _inventoryIntegration?.AddInventoryToFarmer(player, 36);
+
+        // Switch to inventory 1 (second inventory, 0-indexed)
+        if (_inventoryIntegration?.SwitchToInventory(player, 1) == true)
+        {
+            this.Monitor.Log("Switched to second inventory", LogLevel.Info);
+        }
+
+        // Log inventory information
+        _inventoryIntegration?.LogInventoryInfo(player);
+    }
+}
