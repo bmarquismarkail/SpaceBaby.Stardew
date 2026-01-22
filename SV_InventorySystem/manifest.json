@@ -1,5 +1,5 @@
 {
-  "Name": "SV Inventory System",
+  "Name": "SB Inventory System",
   "Author": "SpaceBaby",
   "Version": "1.0.0",
   "Description": "A multi-inventory system for Stardew Valley that patches Farmer CurrentItem and ActiveItem properties",
