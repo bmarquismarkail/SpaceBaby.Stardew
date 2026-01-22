@@ -7,5 +7,5 @@
   "EntryDll": "SV_InventorySystem.dll",
   "TargetPlatform": "Android",
   "MinimumApiVersion": "3.18.0",
-  "UpdateKeys": []
+  "UpdateKeys": ["Nexus:41555"]
 }
