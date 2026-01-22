@@ -187,6 +187,8 @@ public class FarmerPatches
         {
             if (InventoryManager == null)
                 return;
+            
+            Monitor?.Log($"CurrentToolIndex changed to {value}", LogLevel.Debug);
 
             // Notify inventory manager about tool index change for any additional processing
             InventoryManager.OnToolIndexChanged(__instance, value);

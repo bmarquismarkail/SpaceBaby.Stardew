@@ -250,6 +250,12 @@ public class SmapiReflectionHelper
     {
         try
         {
+            if (farmer == null)
+            {
+                _monitor.Log("Cannot validate SMAPI reflection before a save is loaded (farmer is null)", LogLevel.Trace);
+                return false;
+            }
+
             // Test _itemStowed field access with required=false for graceful handling
             var testItemStowedField = _reflection.GetField<bool>(farmer, "_itemStowed", required: false);
             if (testItemStowedField == null)
@@ -262,17 +268,26 @@ public class SmapiReflectionHelper
             testItemStowedField.GetValue();
 
             // Test method access with required=false
-            var testRemoveMethod = _reflection.GetMethod(farmer, "removeItemFromInventory", required: false);
-            var testAddMethod = _reflection.GetMethod(farmer, "addItemToInventory", required: false);
-            
-            if (testRemoveMethod == null)
+            try
             {
-                _monitor.Log("removeItemFromInventory method not accessible", LogLevel.Warn);
+                var testRemoveMethod = _reflection.GetMethod(farmer, "removeItemFromInventory", required: false);
+                if (testRemoveMethod == null)
+                    _monitor.Log("removeItemFromInventory method not accessible", LogLevel.Warn);
             }
-            
-            if (testAddMethod == null)
+            catch (Exception ex)
             {
-                _monitor.Log("addItemToInventory method not accessible", LogLevel.Warn);
+                _monitor.Log($"removeItemFromInventory method lookup failed: {ex.Message}", LogLevel.Warn);
+            }
+
+            try
+            {
+                var testAddMethod = _reflection.GetMethod(farmer, "addItemToInventory", required: false);
+                if (testAddMethod == null)
+                    _monitor.Log("addItemToInventory method not accessible", LogLevel.Warn);
+            }
+            catch (Exception ex)
+            {
+                _monitor.Log($"addItemToInventory method lookup failed: {ex.Message}", LogLevel.Warn);
             }
 
             _monitor.Log("SMAPI reflection validation successful", LogLevel.Debug);

@@ -50,14 +50,13 @@ public class MultiInventoryManager : IMultiInventoryManager
 
     public int GetTotalInventorySize(Farmer farmer)
     {
-        var data = GetOrCreateFarmerData(farmer);
         int total = farmer.Items.Count; // Original inventory
-        
-        for (int i = 1; i < data.Inventories.Count; i++)
+
+        foreach (var inventory in GetOrCreateFarmerData(farmer).Inventories)
         {
-            total += data.Inventories[i].Count;
+            total += inventory.Count;
         }
-        
+
         return total;
     }
 
@@ -76,7 +75,7 @@ public class MultiInventoryManager : IMultiInventoryManager
         }
         
         // Try to remove from additional inventories
-        for (int invIdx = 1; invIdx < data.Inventories.Count; invIdx++)
+        for (int invIdx = 0; invIdx < data.Inventories.Count; invIdx++)
         {
             var inventory = data.Inventories[invIdx];
             for (int i = 0; i < inventory.Count; i++)
@@ -135,7 +134,7 @@ public class MultiInventoryManager : IMultiInventoryManager
     public void SetActiveInventoryIndex(Farmer farmer, int inventoryIndex)
     {
         var data = GetOrCreateFarmerData(farmer);
-        if (inventoryIndex >= 0 && inventoryIndex < data.Inventories.Count)
+        if (inventoryIndex >= 0 && inventoryIndex < GetInventoryCount(farmer))
         {
             data.ActiveInventoryIndex = inventoryIndex;
         }
@@ -143,24 +142,24 @@ public class MultiInventoryManager : IMultiInventoryManager
 
     public int GetInventoryCount(Farmer farmer)
     {
-        var data = GetOrCreateFarmerData(farmer);
-        return data.Inventories.Count;
+        return GetOrCreateFarmerData(farmer).Inventories.Count + 1; // include base inventory
     }
 
     public IList<Item?>? GetInventory(Farmer farmer, int inventoryIndex)
     {
-        var data = GetOrCreateFarmerData(farmer);
-        
         if (inventoryIndex == 0)
         {
             return farmer.Items;
         }
-        
-        if (inventoryIndex >= 0 && inventoryIndex < data.Inventories.Count)
+
+        var data = GetOrCreateFarmerData(farmer);
+        int adjustedIndex = inventoryIndex - 1;
+
+        if (adjustedIndex >= 0 && adjustedIndex < data.Inventories.Count)
         {
-            return data.Inventories[inventoryIndex];
+            return data.Inventories[adjustedIndex];
         }
-        
+
         return null;
     }
 
@@ -168,23 +167,24 @@ public class MultiInventoryManager : IMultiInventoryManager
     {
         if (globalIndex < 0)
             return null;
-            
+
         var data = GetOrCreateFarmerData(farmer);
         int currentOffset = 0;
-        
-        for (int invIdx = 0; invIdx < data.Inventories.Count; invIdx++)
+        int totalInventories = data.Inventories.Count + 1; // include base inventory at index 0
+
+        for (int invIdx = 0; invIdx < totalInventories; invIdx++)
         {
-            var inventory = invIdx == 0 ? farmer.Items : data.Inventories[invIdx];
+            var inventory = invIdx == 0 ? farmer.Items : data.Inventories[invIdx - 1];
             int inventorySize = inventory.Count;
-            
+
             if (globalIndex < currentOffset + inventorySize)
             {
                 return (invIdx, globalIndex - currentOffset);
             }
-            
+
             currentOffset += inventorySize;
         }
-        
+
         return null;
     }
 
@@ -207,10 +207,11 @@ public class MultiInventoryManager : IMultiInventoryManager
             return false;
             
         var data = GetOrCreateFarmerData(farmer);
-        if (inventoryIndex >= data.Inventories.Count)
+        int adjustedIndex = inventoryIndex - 1;
+        if (adjustedIndex >= data.Inventories.Count)
             return false;
             
-        data.Inventories.RemoveAt(inventoryIndex);
+        data.Inventories.RemoveAt(adjustedIndex);
         
         // Adjust active inventory index if needed
         if (data.ActiveInventoryIndex >= inventoryIndex)

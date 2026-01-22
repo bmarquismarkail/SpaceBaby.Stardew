@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
@@ -6,6 +7,7 @@ using StardewValley.Menus;
 using System.Collections.Generic;
 using System.Linq;
 using VerticalToolbar.Framework;
+using SV_InventorySystem.Framework.Reflection;
 
 namespace VerticalToolbar
 {
@@ -21,6 +23,9 @@ namespace VerticalToolbar
         private int triggerPolling = 300;
         private int released = 0;
         private int baseMaxItems;
+        private IMultiInventoryManager? _inventoryManager;
+        private InventorySystemIntegration? _inventorySystemIntegration;
+        private ToolbarConfig toolbarConfig;
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -28,6 +33,7 @@ namespace VerticalToolbar
         {
             Config = helper.ReadConfig<ModConfig>();
 
+            helper.Events.GameLoop.GameLaunched += (s, e) => OnGameLaunched();
             helper.Events.GameLoop.SaveLoaded += onSaveLoaded;
             helper.Events.GameLoop.UpdateTicked += onUpdateTicked;
             helper.Events.Input.MouseWheelScrolled += onMouseWheelScrolled;
@@ -39,6 +45,49 @@ namespace VerticalToolbar
             isInitiated = false;
             modOverride = false;
             Orientation = Config.Controls.Orientation;
+            toolbarConfig = helper.ReadConfig<ToolbarConfig>();
+        }
+        private void SwitchToNextInventory()
+        {
+            if (_inventoryManager == null) return;
+            int currentInvIdx = _inventoryManager.GetActiveInventoryIndex(Game1.player);
+            int maxInventories = _inventoryManager.GetInventoryCount(Game1.player);
+            int nextIdx = (currentInvIdx + 1) % maxInventories;
+            _inventoryManager.SetActiveInventoryIndex(Game1.player, nextIdx);
+            Monitor.Log($"Switched to inventory {nextIdx}", LogLevel.Debug);
+        }
+
+        private void SwitchToPreviousInventory()
+        {
+            if (_inventoryManager == null) return;
+            int currentInvIdx = _inventoryManager.GetActiveInventoryIndex(Game1.player);
+            int maxInventories = _inventoryManager.GetInventoryCount(Game1.player);
+            int prevIdx = (currentInvIdx - 1 + maxInventories) % maxInventories;
+            _inventoryManager.SetActiveInventoryIndex(Game1.player, prevIdx);
+            Monitor.Log($"Switched to inventory {prevIdx}", LogLevel.Debug);
+        }
+        private void OnGameLaunched()
+        {
+            try
+            {
+                var inventoryModId = "SpaceBaby.SV_InventorySystem";
+                var inventoryMod = Helper.ModRegistry.GetApi<IMultiInventoryManager>(inventoryModId);
+
+                if (inventoryMod != null)
+                {
+                    _inventoryManager = inventoryMod;
+                    _inventorySystemIntegration = new InventorySystemIntegration(this.Monitor, _inventoryManager);
+                    this.Monitor.Log("SV_InventorySystem detected. Multi-inventory features enabled.", LogLevel.Info);
+                }
+                else
+                {
+                    this.Monitor.Log("SV_InventorySystem not detected. Multi-inventory features disabled.", LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"Error while trying to integrate with SV_InventorySystem: {ex}", LogLevel.Error);
+            }
         }
 
         private void onReturnToTitle(object sender, ReturnedToTitleEventArgs e)
@@ -57,6 +106,16 @@ namespace VerticalToolbar
             // check input modifier
             var input = this.Helper.Input;
             modOverride = false;
+
+            if (input.IsDown(Config.Controls.SwitchInventoryNext))
+            {
+                SwitchToNextInventory();
+            }
+            if (input.IsDown(Config.Controls.SwitchInventoryPrev))
+            {
+                SwitchToPreviousInventory();
+            }
+
             if (!Game1.player.UsingTool && input.IsDown(Config.Controls.HoldToActivateSlotKeys))
             {
                 if (input.IsDown(Config.Controls.ChooseSlot1))
@@ -127,8 +186,23 @@ namespace VerticalToolbar
             if (!isInitiated)
                 return;
 
+            // Handle left mouse click on vertical toolbar
+            if (e.Button == SButton.MouseLeft && Game1.activeClickableMenu == null)
+            {
+                var mousePos = this.Helper.Input.GetCursorPosition();
+                int x = (int)mousePos.GetScaledScreenPixels().X;
+                int y = (int)mousePos.GetScaledScreenPixels().Y;
+                
+                if (verticalToolbar.isWithinBounds(x, y))
+                {
+                    verticalToolbar.receiveLeftClick(x, y, true);
+                    this.Helper.Input.Suppress(SButton.MouseLeft);
+                    return;
+                }
+            }
+
             // set scrolling
-            if(verticalToolbar.numToolsInToolbar > 0 && (e.Button == this.Config.Controls.ScrollLeft || e.Button == this.Config.Controls.ScrollRight))
+            if (verticalToolbar.numToolsInToolbar > 0 && (e.Button == this.Config.Controls.ScrollLeft || e.Button == this.Config.Controls.ScrollRight))
             {
                 this.Helper.Input.Suppress(e.Button);
                 Game1.player.CurrentToolIndex = currentToolIndex;
@@ -171,7 +245,7 @@ namespace VerticalToolbar
             {
                 List<IClickableMenu> pages = this.Helper.Reflection.GetField<List<IClickableMenu>>(menu, "pages").GetValue();
                 pages.RemoveAt(0);
-                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height));
+                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height, _inventoryManager));
             }
         }
 
@@ -210,7 +284,9 @@ namespace VerticalToolbar
                     }
                 }
 
-                if (Game1.player.Items[currentToolIndex] != null)
+                // Use VerticalToolBar's method to safely get item from any inventory
+                Item itemAtSlot = verticalToolbar.GetItemAtSlot(currentToolIndex);
+                if (itemAtSlot != null)
                     break;
             }
             modOverride = true;
@@ -234,7 +310,7 @@ namespace VerticalToolbar
         private void onSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             baseMaxItems = Game1.player.MaxItems;
-            verticalToolbar = new VerticalToolBar(this.Orientation);
+            verticalToolbar = new VerticalToolBar(this.Orientation, VerticalToolBar.NUM_BUTTONS, _inventoryManager, false);
             Game1.onScreenMenus.Add(verticalToolbar);
 
             currentToolIndex = Game1.player.CurrentToolIndex;
@@ -251,7 +327,7 @@ namespace VerticalToolbar
                 Game1.player.CurrentItem.actionWhenStopBeingHeld(Game1.player);
             if (right)
             {
-                List<Item> range = Game1.player.Items.ToList().GetRange(12,baseMaxItems - 12);
+                List<Item> range = Game1.player.Items.ToList().GetRange(12, baseMaxItems - 12);
                 range.AddRange(Game1.player.Items.ToList().GetRange(0, 12));
                 range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
                 Game1.player.setInventory(range);

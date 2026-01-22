@@ -6,5 +6,17 @@
   "UniqueID": "SB_VerticalToolMenu",
   "EntryDll": "VerticalToolbar.dll",
   "MinimumApiVersion": "4.3.0",
-  "UpdateKeys": [ "Nexus:943" , "GitHub:bmarquismarkail/SV_VerticalToolMenu" ]
+  "UpdateKeys": [ "Nexus:943" , "GitHub:bmarquismarkail/SV_VerticalToolMenu" ],
+  "Dependencies": [
+    {
+      "UniqueID": "SpaceBaby.SV_InventorySystem",
+      "MinimumVersion": "1.0.0",
+      "IsRequired": true
+    }
+  ],
+  "ContentPackFor": null,
+  "ModData" : {
+    "UseMultiInventoryUI" : true,
+    "ShowInventoryIndexOnToolbar" : true
+  }
 }

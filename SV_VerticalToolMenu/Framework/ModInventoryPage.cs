@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using StardewValley;
 using StardewValley.Menus;
+using SV_InventorySystem.Framework.Reflection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,13 +11,16 @@ namespace VerticalToolbar.Framework
     internal class ModInventoryPage : StardewValley.Menus.InventoryPage
     {
         private readonly VerticalToolBar verticalToolBar;
+        private readonly IMultiInventoryManager? _inventoryManager;
 
-        public ModInventoryPage(int x, int y, int width, int height)
+        public ModInventoryPage(int x, int y, int width, int height, IMultiInventoryManager? inventoryManager = null)
             : base(x, y, width, height)
         {
+            _inventoryManager = inventoryManager;
             verticalToolBar = new VerticalToolBar(
                 Orientation.LeftOfToolbar,
                 VerticalToolBar.NUM_BUTTONS,
+                inventoryManager,
                 true)
             {
                 xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2,
@@ -35,34 +39,55 @@ namespace VerticalToolbar.Framework
             Item heldItem = Game1.player.CursorSlotItem;
             foreach (ClickableComponent button in verticalToolBar.buttons)
             {
-                if (button.containsPoint(x, y))
-                {
-                    if (heldItem != null)
-                    {
-                        if (Game1.player.Items[Convert.ToInt32(button.name)] == null || Game1.player.Items[Convert.ToInt32(button.name)].canStackWith(heldItem))
-                        {
-                            if (Game1.player.CurrentToolIndex == Convert.ToInt32(button.name))
-                                heldItem.actionWhenBeingHeld(Game1.player);
-                            Utility.addItemToInventory(heldItem, Convert.ToInt32(button.name), Game1.player.Items);
-                            Game1.player.CursorSlotItem = null;
-                            Game1.playSound("stoneStep");
-                            return;
-                        }
-                        if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
-                        {
-                            Item swapItem = Game1.player.CursorSlotItem;
-                            Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
-                            Utility.addItemToInventory(swapItem, Convert.ToInt32(button.name), Game1.player.Items);
-                            return;
+                if (!button.containsPoint(x, y))
+                    continue;
 
-                        }
-                    }
-                    if (Game1.player.Items[Convert.ToInt32(button.name)] != null)
+                int slotIndex = Convert.ToInt32(button.name);
+                if (!TryResolveSlot(slotIndex, out var inventory, out var localIndex))
+                    continue;
+
+                Item slotItem = inventory[localIndex];
+
+                if (heldItem != null)
+                {
+                    if (slotItem == null)
                     {
-                        Game1.player.CursorSlotItem = Game1.player.Items[Convert.ToInt32(button.name)];
-                        Utility.removeItemFromInventory(Convert.ToInt32(button.name), Game1.player.Items);
+                        inventory[localIndex] = heldItem;
+                        Game1.player.CursorSlotItem = null;
+                        Game1.playSound("stoneStep");
                         return;
                     }
+
+                    if (slotItem.canStackWith(heldItem))
+                    {
+                        int maxAdd = slotItem.maximumStackSize() - slotItem.Stack;
+                        if (maxAdd > 0)
+                        {
+                            int toMove = Math.Min(maxAdd, heldItem.Stack);
+                            slotItem.Stack += toMove;
+                            heldItem.Stack -= toMove;
+
+                            if (heldItem.Stack <= 0)
+                                Game1.player.CursorSlotItem = null;
+
+                            Game1.playSound("stoneStep");
+                        }
+                        return;
+                    }
+
+                    // Swap items
+                    Game1.player.CursorSlotItem = slotItem;
+                    inventory[localIndex] = heldItem;
+                    Game1.playSound("stoneStep");
+                    return;
+                }
+
+                if (slotItem != null)
+                {
+                    Game1.player.CursorSlotItem = slotItem;
+                    inventory[localIndex] = null;
+                    Game1.playSound("dwop");
+                    return;
                 }
             }
             if (this.organizeButton.containsPoint(x, y))
@@ -76,6 +101,39 @@ namespace VerticalToolbar.Framework
             }
 
             base.receiveLeftClick(x, y, true);
+        }
+
+        private bool TryResolveSlot(int globalIndex, out IList<Item?> inventory, out int localIndex)
+        {
+            inventory = null;
+            localIndex = -1;
+
+            if (_inventoryManager == null)
+            {
+                if (Game1.player.Items.Count > globalIndex)
+                {
+                    inventory = Game1.player.Items;
+                    localIndex = globalIndex;
+                    return true;
+                }
+
+                return false;
+            }
+
+            var mapping = _inventoryManager.TranslateGlobalIndex(Game1.player, globalIndex);
+            if (mapping == null)
+                return false;
+
+            var targetInventory = _inventoryManager.GetInventory(Game1.player, mapping.Value.inventoryIndex);
+            if (targetInventory == null)
+                return false;
+
+            if (mapping.Value.localIndex < 0 || mapping.Value.localIndex >= targetInventory.Count)
+                return false;
+
+            inventory = targetInventory;
+            localIndex = mapping.Value.localIndex;
+            return true;
         }
 
         public override void receiveRightClick(int x, int y, bool playSound = true)

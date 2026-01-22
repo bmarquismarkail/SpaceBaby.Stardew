@@ -15,4 +15,7 @@
   <ItemGroup>
     <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.4.0" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../SV_InventorySystem/SV_InventorySystem.csproj" />
+  </ItemGroup>
 </Project>

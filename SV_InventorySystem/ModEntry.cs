@@ -22,16 +22,16 @@ public class ModEntry : Mod
         // Initialize SMAPI reflection helper (primary approach)
         _smapiHelper = new SmapiReflectionHelper(this.Helper.Reflection, this.Monitor);
 
-        // Use SMAPI reflection as the primary approach (better compatibility)
-        if (!_config.UseHarmonyPatches)
+        // Use Harmony patches to intercept CurrentItem/ActiveItem (required for multi-inventory)
+        if (_config.UseHarmonyPatches)
         {
-            this.Monitor.Log("Using SMAPI reflection approach for multi-inventory system (recommended)", LogLevel.Info);
-            InitializeSmapiApproach();
+            this.Monitor.Log("Using Harmony patches for multi-inventory system (required for tool use)", LogLevel.Info);
+            InitializeHarmonyApproach();
         }
         else
         {
-            this.Monitor.Log("Using Harmony patches for multi-inventory system (advanced)", LogLevel.Info);
-            InitializeHarmonyApproach();
+            this.Monitor.Log("Using SMAPI reflection approach for multi-inventory system (validation only)", LogLevel.Info);
+            InitializeSmapiApproach();
         }
 
         // Set up event handlers
@@ -73,16 +73,8 @@ public class ModEntry : Mod
 
     private void InitializeSmapiApproach()
     {
-        // Validate SMAPI reflection works properly
-        if (_smapiHelper!.ValidateReflection(Game1.player))
-        {
-            this.Monitor.Log("SMAPI reflection helper initialized and validated successfully.", LogLevel.Info);
-            this.Monitor.Log("Use SmapiHelper.GetCurrentItem/GetActiveItem/SetActiveItem methods for multi-inventory access.", LogLevel.Info);
-        }
-        else
-        {
-            this.Monitor.Log("SMAPI reflection validation failed. Some features may not work correctly.", LogLevel.Warn);
-        }
+        // Defer validation until a save is loaded; Game1.player is null during Entry
+        this.Monitor.Log("Using SMAPI reflection approach for multi-inventory system (validation deferred until save load)", LogLevel.Info);
     }
 
     private void OnGameLaunched(object? sender, StardewModdingAPI.Events.GameLaunchedEventArgs e)
@@ -111,6 +103,14 @@ public class ModEntry : Mod
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Expose the multi-inventory manager to other mods via SMAPI GetApi.
+    /// </summary>
+    public override object? GetApi()
+    {
+        return _inventoryManager;
     }
 
     /// <summary>
@@ -153,10 +153,10 @@ public class ModConfig
 {
     /// <summary>
     /// Whether to use Harmony patches (true) or SMAPI reflection approach (false)
-    /// SMAPI reflection is the default and recommended approach for better compatibility
-    /// Harmony patches provide automatic interception but may have compatibility issues
+    /// HARMONY PATCHES are required for CurrentItem/ActiveItem to work with multi-inventories
+    /// SMAPI reflection is only for validation and helper methods
     /// </summary>
-    public bool UseHarmonyPatches { get; set; } = false;
+    public bool UseHarmonyPatches { get; set; } = true;
 
     /// <summary>
     /// Number of additional inventories to create by default

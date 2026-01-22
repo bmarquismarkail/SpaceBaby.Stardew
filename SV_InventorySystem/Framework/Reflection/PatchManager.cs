@@ -37,8 +37,52 @@ public class PatchManager
             // Initialize the patches with dependencies
             FarmerPatches.Initialize(_monitor, _inventoryManager);
 
-            // Apply Harmony patches
-            _harmony.PatchAll(typeof(FarmerPatches).Assembly);
+            // Manually patch each method explicitly
+            var farmerType = typeof(Farmer);
+            
+            // Patch CurrentItem getter
+            var currentItemGetter = AccessTools.Property(farmerType, "CurrentItem")?.GetGetMethod();
+            if (currentItemGetter != null)
+            {
+                _harmony.Patch(
+                    currentItemGetter,
+                    prefix: new HarmonyMethod(typeof(FarmerPatches), nameof(FarmerPatches.CurrentItem_Getter_Prefix))
+                );
+                _monitor.Log("Patched CurrentItem getter", LogLevel.Debug);
+            }
+
+            // Patch ActiveItem getter
+            var activeItemGetter = AccessTools.Property(farmerType, "ActiveItem")?.GetGetMethod();
+            if (activeItemGetter != null)
+            {
+                _harmony.Patch(
+                    activeItemGetter,
+                    prefix: new HarmonyMethod(typeof(FarmerPatches), nameof(FarmerPatches.ActiveItem_Getter_Prefix))
+                );
+                _monitor.Log("Patched ActiveItem getter", LogLevel.Debug);
+            }
+
+            // Patch ActiveItem setter
+            var activeItemSetter = AccessTools.Property(farmerType, "ActiveItem")?.GetSetMethod();
+            if (activeItemSetter != null)
+            {
+                _harmony.Patch(
+                    activeItemSetter,
+                    prefix: new HarmonyMethod(typeof(FarmerPatches), nameof(FarmerPatches.ActiveItem_Setter_Prefix))
+                );
+                _monitor.Log("Patched ActiveItem setter", LogLevel.Debug);
+            }
+
+            // Patch CurrentToolIndex setter
+            var currentToolIndexSetter = AccessTools.Property(farmerType, "CurrentToolIndex")?.GetSetMethod();
+            if (currentToolIndexSetter != null)
+            {
+                _harmony.Patch(
+                    currentToolIndexSetter,
+                    postfix: new HarmonyMethod(typeof(FarmerPatches), nameof(FarmerPatches.CurrentToolIndex_Setter_Postfix))
+                );
+                _monitor.Log("Patched CurrentToolIndex setter", LogLevel.Debug);
+            }
 
             _patchesApplied = true;
             _monitor.Log("Multi-inventory patches applied successfully", LogLevel.Info);
