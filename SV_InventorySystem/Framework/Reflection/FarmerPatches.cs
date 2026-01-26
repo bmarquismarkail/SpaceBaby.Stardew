@@ -52,7 +52,8 @@ public class FarmerPatches
                 return true;
             }
             
-            bool isItemStowed = (bool)itemStowedField.GetValue(__instance);
+            var stowedValue = itemStowedField.GetValue(__instance);
+            bool isItemStowed = stowedValue is bool b && b;
             if (isItemStowed)
             {
                 __result = null;
@@ -102,7 +103,8 @@ public class FarmerPatches
                 return true;
             }
             
-            bool isItemStowed = (bool)itemStowedField.GetValue(__instance);
+            var stowedValue = itemStowedField.GetValue(__instance);
+            bool isItemStowed = stowedValue is bool b && b;
             if (isItemStowed)
             {
                 __result = null;

@@ -1,3 +1,5 @@
+// Nullable annotations need explicit context in this file
+#nullable enable
 using Microsoft.Xna.Framework;
 using StardewValley;
 using StardewValley.Menus;
@@ -36,7 +38,7 @@ namespace VerticalToolbar.Framework
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
-            Item heldItem = Game1.player.CursorSlotItem;
+            Item? heldItem = Game1.player.CursorSlotItem;
             foreach (ClickableComponent button in verticalToolBar.buttons)
             {
                 if (!button.containsPoint(x, y))
@@ -46,9 +48,9 @@ namespace VerticalToolbar.Framework
                 if (!TryResolveSlot(slotIndex, out var inventory, out var localIndex))
                     continue;
 
-                Item slotItem = inventory[localIndex];
+                Item? slotItem = inventory?[localIndex];
 
-                if (heldItem != null)
+                if (heldItem != null && inventory != null)
                 {
                     if (slotItem == null)
                     {
@@ -85,7 +87,8 @@ namespace VerticalToolbar.Framework
                 if (slotItem != null)
                 {
                     Game1.player.CursorSlotItem = slotItem;
-                    inventory[localIndex] = null;
+                    if (inventory != null)
+                        inventory[localIndex] = null;
                     Game1.playSound("dwop");
                     return;
                 }
@@ -103,7 +106,7 @@ namespace VerticalToolbar.Framework
             base.receiveLeftClick(x, y, true);
         }
 
-        private bool TryResolveSlot(int globalIndex, out IList<Item?> inventory, out int localIndex)
+        private bool TryResolveSlot(int globalIndex, out IList<Item?>? inventory, out int localIndex)
         {
             inventory = null;
             localIndex = -1;
@@ -140,7 +143,7 @@ namespace VerticalToolbar.Framework
         {
             if (verticalToolBar.isWithinBounds(x, y))
             {
-                Item heldItem = Game1.player.CursorSlotItem;
+                Item? heldItem = Game1.player.CursorSlotItem;
                 Game1.player.CursorSlotItem = verticalToolBar.RightClick(x, y, heldItem, playSound);
                 return;
             }

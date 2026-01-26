@@ -1,3 +1,5 @@
+// Enable nullable annotations for this file
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,13 +30,13 @@ namespace VerticalToolbar.Framework
         private float transparency = 1f;
         public Rectangle toolbarTextSource = new Rectangle(0, 256, 60, 60);
         public int numToolsInToolbar = 0;
-        private Item hoverItem;
+        private Item? hoverItem;
         public bool forceDraw = false;
         private int baseMaxItems = Game1.player.MaxItems;
         private IMultiInventoryManager? _inventoryManager;
         private ToolbarConfig toolbarConfig = new ToolbarConfig();
 
-        public VerticalToolBar(Orientation o, int numButtons = 5, IMultiInventoryManager inventoryManager = null, bool forceDraw = false)
+        public VerticalToolBar(Orientation o, int numButtons = 5, IMultiInventoryManager? inventoryManager = null, bool forceDraw = false)
             : base()
         {
             _inventoryManager = inventoryManager;
@@ -82,7 +84,7 @@ namespace VerticalToolbar.Framework
             b.DrawString(Game1.smallFont, text, position, Color.Yellow * this.transparency);
         }
 
-        public static Toolbar getToolbar()
+        public static Toolbar? getToolbar()
         {
             return Game1.onScreenMenus.OfType<Toolbar>().FirstOrDefault();
         }
@@ -100,7 +102,7 @@ namespace VerticalToolbar.Framework
                     dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
                     break;
                 case Orientation.RightOfToolbar:
-                    dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) + getToolbar().width - (getInitialWidth() / 2);
+                    dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) + (getToolbar()?.width ?? 0) - (getInitialWidth() / 2);
                     dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
                     break;
                 case Orientation.BottomLeft:
@@ -130,7 +132,7 @@ namespace VerticalToolbar.Framework
                     continue;
 
                 int slotIndex = Convert.ToInt32(button.name);
-                Item item = GetItemAtSlot(slotIndex);
+                Item? item = GetItemAtSlot(slotIndex);
 
                 if (item == null)
                     break;
@@ -156,7 +158,7 @@ namespace VerticalToolbar.Framework
 
 
 
-        public Item RightClick(int x, int y, Item toAddTo, bool playSound = true)
+        public Item? RightClick(int x, int y, Item? toAddTo, bool playSound = true)
         {
             foreach (ClickableComponent button in this.buttons)
             {
@@ -167,12 +169,18 @@ namespace VerticalToolbar.Framework
                 if (!TryResolveSlot(slotIndex, out var inventory, out var localIndex))
                     continue;
 
-                Item slotItem = inventory[localIndex];
+                Item? slotItem = inventory[localIndex];
                 if (slotItem == null)
                     continue;
 
-                if (slotItem is Tool tool && (toAddTo == null || toAddTo is SObject) && tool.canThisBeAttached((SObject)toAddTo))
-                    return tool.attach((SObject)toAddTo);
+                if (slotItem is Tool tool && Game1.player.ActiveObject != null && tool.canThisBeAttached(Game1.player.ActiveObject))
+                    {
+                        tool.attach(Game1.player.ActiveObject);
+                        Game1.player.ActiveObject = null;
+                        if (playSound)
+                            Game1.playSound("dwop");
+                        break;
+                    }
 
                 if (toAddTo == null)
                 {
@@ -236,7 +244,7 @@ namespace VerticalToolbar.Framework
                 if (button.containsPoint(x, y))
                 {
                     int int32 = Convert.ToInt32(button.name);
-                    Item item = GetItemAtSlot(int32);
+                    Item? item = GetItemAtSlot(int32);
                     if (item != null)
                     {
                         button.scale = Math.Min(button.scale + 0.05f, 1.1f);
@@ -426,12 +434,12 @@ namespace VerticalToolbar.Framework
                 int int32 = Convert.ToInt32(button.name);
                 int x1 = x;
                 int y1 = y;
-                Item item = GetItemAtSlot(int32);
+                Item? item = GetItemAtSlot(int32);
                 if (button.containsPoint(x1, y1) && item != null)
                 {
-                    if (item is Tool && Game1.player.ActiveObject != null && (item as Tool).canThisBeAttached(Game1.player.ActiveObject))
+                    if (item is Tool tool && Game1.player.ActiveObject != null && tool.canThisBeAttached(Game1.player.ActiveObject))
                     {
-                        (item as Tool).attach(Game1.player.ActiveObject);
+                        tool.attach(Game1.player.ActiveObject);
                         Game1.player.ActiveObject = null;
                         if (playSound)
                             Game1.playSound("dwop");
@@ -443,7 +451,7 @@ namespace VerticalToolbar.Framework
 
         private bool TryResolveSlot(int globalIndex, out IList<Item?> inventory, out int localIndex)
         {
-            inventory = null;
+            inventory = null!; // Suppress nullability warning as inventory is explicitly nullable
             localIndex = -1;
 
             if (_inventoryManager == null)

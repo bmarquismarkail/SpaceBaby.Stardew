@@ -14,8 +14,8 @@ namespace VerticalToolbar
     internal class ModEntry : Mod
     {
         /// <summary>The mod configuration.</summary>
-        private ModConfig Config;
-        private VerticalToolBar verticalToolbar;
+        private ModConfig Config = null!;
+        private VerticalToolBar verticalToolbar = null!;
         VerticalToolbar.Framework.Orientation Orientation;
         private bool isInitiated, modOverride;
         private int currentToolIndex;
@@ -25,7 +25,7 @@ namespace VerticalToolbar
         private int baseMaxItems;
         private IMultiInventoryManager? _inventoryManager;
         private InventorySystemIntegration? _inventorySystemIntegration;
-        private ToolbarConfig toolbarConfig;
+        private ToolbarConfig toolbarConfig = null!;
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -90,7 +90,7 @@ namespace VerticalToolbar
             }
         }
 
-        private void onReturnToTitle(object sender, ReturnedToTitleEventArgs e)
+        private void onReturnToTitle(object? sender, ReturnedToTitleEventArgs e)
         {
             isInitiated = false;
         }
@@ -98,7 +98,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the game state is updated (???60 times per second).</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onUpdateTicked(object sender, UpdateTickedEventArgs e)
+        private void onUpdateTicked(object? sender, UpdateTickedEventArgs e)
         {
             if (!isInitiated)
                 return;
@@ -181,7 +181,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the player presses a button on the keyboard, controller, or mouse.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onButtonPressed(object sender, ButtonPressedEventArgs e)
+        private void onButtonPressed(object? sender, ButtonPressedEventArgs e)
         {
             if (!isInitiated)
                 return;
@@ -222,7 +222,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the player releases a button on the keyboard, controller, or mouse.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onButtonReleased(object sender, ButtonReleasedEventArgs e)
+        private void onButtonReleased(object? sender, ButtonReleasedEventArgs e)
         {
             if (!isInitiated)
                 return;
@@ -239,7 +239,7 @@ namespace VerticalToolbar
         /// <summary>Raised after a game menu is opened, closed, or replaced.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onMenuChanged(object sender, MenuChangedEventArgs e)
+        private void onMenuChanged(object? sender, MenuChangedEventArgs e)
         {
             if (e.NewMenu is GameMenu menu && menu.currentTab == GameMenu.inventoryTab)
             {
@@ -285,7 +285,7 @@ namespace VerticalToolbar
                 }
 
                 // Use VerticalToolBar's method to safely get item from any inventory
-                Item itemAtSlot = verticalToolbar.GetItemAtSlot(currentToolIndex);
+                Item? itemAtSlot = verticalToolbar.GetItemAtSlot(currentToolIndex);
                 if (itemAtSlot != null)
                     break;
             }
@@ -295,7 +295,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the player scrolls the mouse wheel.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onMouseWheelScrolled(object sender, MouseWheelScrolledEventArgs e)
+        private void onMouseWheelScrolled(object? sender, MouseWheelScrolledEventArgs e)
         {
             if (!isInitiated)
                 return;
@@ -307,7 +307,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the player loads a save slot and the world is initialised.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onSaveLoaded(object sender, SaveLoadedEventArgs e)
+        private void onSaveLoaded(object? sender, SaveLoadedEventArgs e)
         {
             baseMaxItems = Game1.player.MaxItems;
             verticalToolbar = new VerticalToolBar(this.Orientation, VerticalToolBar.NUM_BUTTONS, _inventoryManager, false);
@@ -345,9 +345,9 @@ namespace VerticalToolbar
                 Game1.player.CurrentItem.actionWhenBeingHeld(Game1.player);
             for (int index = 0; index < Game1.onScreenMenus.Count; ++index)
             {
-                if (Game1.onScreenMenus[index] is Toolbar)
+                if (Game1.onScreenMenus[index] is Toolbar toolbar)
                 {
-                    (Game1.onScreenMenus[index] as Toolbar).shifted(right);
+                    toolbar.shifted(right);
                     break;
                 }
             }
