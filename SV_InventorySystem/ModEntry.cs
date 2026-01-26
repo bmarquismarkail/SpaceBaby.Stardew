@@ -84,11 +84,14 @@ public class ModEntry : Mod
 
     private void OnSaveLoaded(object? sender, StardewModdingAPI.Events.SaveLoadedEventArgs e)
     {
-        // Example: Add an additional inventory for the player
+        // Ensure additional inventories exist for the player
         if (_inventoryManager != null && Game1.player != null)
         {
-            _inventoryManager.AddInventory(Game1.player, 36); // Add a second inventory with 36 slots
-            this.Monitor.Log($"Added additional inventory. Player now has {_inventoryManager.GetInventoryCount(Game1.player)} inventories", LogLevel.Info);
+            int additionalInventories = Math.Max(0, _config?.DefaultAdditionalInventories ?? 1);
+            int inventorySize = Math.Max(0, _config?.AdditionalInventorySize ?? 36);
+
+            _inventoryManager.EnsureAdditionalInventories(Game1.player, additionalInventories, inventorySize);
+            this.Monitor.Log($"Ensured additional inventories (count={additionalInventories}, size={inventorySize}). Player now has {_inventoryManager.GetInventoryCount(Game1.player)} inventories", LogLevel.Info);
 
             // Test SMAPI reflection validation if not using Harmony
             if (!(_config?.UseHarmonyPatches ?? true) && _smapiHelper != null)

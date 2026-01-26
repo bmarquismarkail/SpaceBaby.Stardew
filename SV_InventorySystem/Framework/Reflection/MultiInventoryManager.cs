@@ -1,5 +1,7 @@
 using StardewModdingAPI;
 using StardewValley;
+using StardewValley.Inventories;
+using System;
 using System.Collections.Generic;
 
 namespace SV_InventorySystem.Framework.Reflection;
@@ -11,6 +13,11 @@ public class MultiInventoryManager : IMultiInventoryManager
 {
     private readonly IMonitor _monitor;
     private readonly Dictionary<long, FarmerInventoryData> _farmerInventories;
+
+    /// <summary>
+    /// Prefix used for per-farmer global inventories which persist extra inventories across saves.
+    /// </summary>
+    private const string GlobalInventoryPrefix = "SpaceBaby.SV_InventorySystem.Inventory";
 
     public MultiInventoryManager(IMonitor monitor)
     {
@@ -28,9 +35,45 @@ public class MultiInventoryManager : IMultiInventoryManager
         return data;
     }
 
+    private static string GetGlobalInventoryId(long farmerId, int inventoryIndex)
+    {
+        return $"{GlobalInventoryPrefix}.{farmerId}.{inventoryIndex}";
+    }
+
+    private static bool TryParseGlobalInventoryId(string id, long farmerId, out int inventoryIndex)
+    {
+        string prefix = $"{GlobalInventoryPrefix}.{farmerId}.";
+        if (!id.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            inventoryIndex = -1;
+            return false;
+        }
+
+        string suffix = id.Substring(prefix.Length);
+        return int.TryParse(suffix, out inventoryIndex) && inventoryIndex > 0;
+    }
+
+    private static void EnsureInventorySize(IList<Item?> inventory, int size)
+    {
+        while (inventory.Count < size)
+            inventory.Add(null);
+    }
+
+    private static List<string> GetAdditionalInventoryIds(Farmer farmer)
+    {
+        var list = new List<(int index, string id)>();
+        foreach (string id in farmer.team.globalInventories.Keys)
+        {
+            if (TryParseGlobalInventoryId(id, farmer.UniqueMultiplayerID, out int index))
+                list.Add((index, id));
+        }
+
+        list.Sort((a, b) => a.index.CompareTo(b.index));
+        return list.Select(p => p.id).ToList();
+    }
+
     public Item? GetCurrentItem(Farmer farmer)
     {
-        var data = GetOrCreateFarmerData(farmer);
         var (inventoryIndex, localIndex) = TranslateGlobalIndex(farmer, farmer.CurrentToolIndex) ?? (0, farmer.CurrentToolIndex);
         
         if (inventoryIndex == 0)
@@ -50,20 +93,14 @@ public class MultiInventoryManager : IMultiInventoryManager
 
     public int GetTotalInventorySize(Farmer farmer)
     {
-        int total = farmer.Items.Count; // Original inventory
-
-        foreach (var inventory in GetOrCreateFarmerData(farmer).Inventories)
-        {
-            total += inventory.Count;
-        }
-
+        int total = farmer.Items.Count;
+        foreach (string id in GetAdditionalInventoryIds(farmer))
+            total += farmer.team.GetOrCreateGlobalInventory(id).Count;
         return total;
     }
 
     public bool RemoveItem(Farmer farmer, Item item)
     {
-        var data = GetOrCreateFarmerData(farmer);
-        
         // Try to remove from original inventory first
         for (int i = 0; i < farmer.Items.Count; i++)
         {
@@ -74,10 +111,9 @@ public class MultiInventoryManager : IMultiInventoryManager
             }
         }
         
-        // Try to remove from additional inventories
-        for (int invIdx = 0; invIdx < data.Inventories.Count; invIdx++)
+        foreach (string id in GetAdditionalInventoryIds(farmer))
         {
-            var inventory = data.Inventories[invIdx];
+            Inventory inventory = farmer.team.GetOrCreateGlobalInventory(id);
             for (int i = 0; i < inventory.Count; i++)
             {
                 if (inventory[i] == item)
@@ -142,7 +178,7 @@ public class MultiInventoryManager : IMultiInventoryManager
 
     public int GetInventoryCount(Farmer farmer)
     {
-        return GetOrCreateFarmerData(farmer).Inventories.Count + 1; // include base inventory
+        return GetAdditionalInventoryIds(farmer).Count + 1;
     }
 
     public IList<Item?>? GetInventory(Farmer farmer, int inventoryIndex)
@@ -152,15 +188,12 @@ public class MultiInventoryManager : IMultiInventoryManager
             return farmer.Items;
         }
 
-        var data = GetOrCreateFarmerData(farmer);
         int adjustedIndex = inventoryIndex - 1;
+        List<string> ids = GetAdditionalInventoryIds(farmer);
+        if (adjustedIndex < 0 || adjustedIndex >= ids.Count)
+            return null;
 
-        if (adjustedIndex >= 0 && adjustedIndex < data.Inventories.Count)
-        {
-            return data.Inventories[adjustedIndex];
-        }
-
-        return null;
+        return farmer.team.GetOrCreateGlobalInventory(ids[adjustedIndex]);
     }
 
     public (int inventoryIndex, int localIndex)? TranslateGlobalIndex(Farmer farmer, int globalIndex)
@@ -168,13 +201,13 @@ public class MultiInventoryManager : IMultiInventoryManager
         if (globalIndex < 0)
             return null;
 
-        var data = GetOrCreateFarmerData(farmer);
         int currentOffset = 0;
-        int totalInventories = data.Inventories.Count + 1; // include base inventory at index 0
+        List<string> additionalInventoryIds = GetAdditionalInventoryIds(farmer);
+        int totalInventories = additionalInventoryIds.Count + 1; // include base inventory at index 0
 
         for (int invIdx = 0; invIdx < totalInventories; invIdx++)
         {
-            var inventory = invIdx == 0 ? farmer.Items : data.Inventories[invIdx - 1];
+            IList<Item?> inventory = invIdx == 0 ? farmer.Items : farmer.team.GetOrCreateGlobalInventory(additionalInventoryIds[invIdx - 1]);
             int inventorySize = inventory.Count;
 
             if (globalIndex < currentOffset + inventorySize)
@@ -189,13 +222,28 @@ public class MultiInventoryManager : IMultiInventoryManager
     }
 
     /// <summary>
-    /// Adds a new inventory for the farmer
+    /// Ensures the given number of additional inventories exist and are at least the given size.
+    /// Extra inventories are persisted in <see cref="FarmerTeam.globalInventories"/>.
     /// </summary>
-    public void AddInventory(Farmer farmer, int size = 36)
+    public void EnsureAdditionalInventories(Farmer farmer, int additionalInventories, int size = 36)
     {
-        var data = GetOrCreateFarmerData(farmer);
-        var newInventory = new List<Item?>(new Item?[size]);
-        data.Inventories.Add(newInventory);
+        if (additionalInventories < 0)
+            additionalInventories = 0;
+
+        if (size < 0)
+            size = 0;
+
+        for (int i = 1; i <= additionalInventories; i++)
+        {
+            Inventory inventory = farmer.team.GetOrCreateGlobalInventory(GetGlobalInventoryId(farmer.UniqueMultiplayerID, i));
+            EnsureInventorySize(inventory, size);
+        }
+
+        foreach (string id in GetAdditionalInventoryIds(farmer))
+        {
+            Inventory inventory = farmer.team.GetOrCreateGlobalInventory(id);
+            EnsureInventorySize(inventory, size);
+        }
     }
 
     /// <summary>
@@ -205,15 +253,20 @@ public class MultiInventoryManager : IMultiInventoryManager
     {
         if (inventoryIndex <= 0) // Cannot remove the original inventory
             return false;
-            
-        var data = GetOrCreateFarmerData(farmer);
+
         int adjustedIndex = inventoryIndex - 1;
-        if (adjustedIndex >= data.Inventories.Count)
+        List<string> ids = GetAdditionalInventoryIds(farmer);
+        if (adjustedIndex < 0 || adjustedIndex >= ids.Count)
             return false;
-            
-        data.Inventories.RemoveAt(adjustedIndex);
-        
+
+        string id = ids[adjustedIndex];
+        if (!farmer.team.globalInventories.ContainsKey(id))
+            return false;
+
+        farmer.team.globalInventories.Remove(id);
+
         // Adjust active inventory index if needed
+        var data = GetOrCreateFarmerData(farmer);
         if (data.ActiveInventoryIndex >= inventoryIndex)
         {
             data.ActiveInventoryIndex = Math.Max(0, data.ActiveInventoryIndex - 1);
@@ -224,13 +277,10 @@ public class MultiInventoryManager : IMultiInventoryManager
 
     private class FarmerInventoryData
     {
-        public List<IList<Item?>> Inventories { get; } = new();
         public int ActiveInventoryIndex { get; set; } = 0;
 
         public FarmerInventoryData()
         {
-            // Index 0 will always represent the original farmer inventory
-            // Additional inventories will be added at indices 1, 2, 3, etc.
         }
     }
 }
