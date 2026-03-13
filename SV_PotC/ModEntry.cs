@@ -38,7 +38,6 @@ namespace SpaceBaby.PartOfTheCommunity
         private IDictionary<string, CharacterInfo> Characters;
         private int CurrentNumberOfCompletedBundles;
         private uint CurrentNumberOfCompletedDailyQuests;
-        private int CurrentUniqueItemsShipped;
         private bool IsReady;
         private ModConfig Config;
         private IDictionary<long, PlayerData> PlayerData;
@@ -180,7 +179,6 @@ namespace SpaceBaby.PartOfTheCommunity
             // refresh data
             this.Characters = this.GetCharacters();
             this.CurrentNumberOfCompletedBundles = ((CommunityCenter)Game1.getLocationFromName("CommunityCenter")).numberOfCompleteBundles();
-            this.CurrentUniqueItemsShipped = Game1.player.basicShipped.Count();
             this.CurrentNumberOfCompletedDailyQuests = Game1.stats.QuestsCompleted;
             
             // Initialize PlayerData before any GetPlayerData calls to prevent NullReferenceException
@@ -204,6 +202,8 @@ namespace SpaceBaby.PartOfTheCommunity
                 var farmerData = this.GetPlayerData(farmer);
                 // Reset to current count to prevent false "new quest" detection
                 farmerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
+                if (farmerData.HasGottenInitialKuumbaBonus && farmerData.LastKnownUniqueItemsShipped == 0)
+                    farmerData.LastKnownUniqueItemsShipped = farmer.basicShipped.Count();
             }
 
             if (!this.IsReady)
@@ -231,10 +231,12 @@ namespace SpaceBaby.PartOfTheCommunity
                     if (!farmerData.HasGottenInitialKuumbaBonus)
                     {
                         int uniqueItemsShipped = farmer.basicShipped.Count();
-                        int bonusPoints = this.Config.KuumbaBonus * uniqueItemsShipped;
-                        Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
-                        this.Monitor.Log($"Gained {bonusPoints} friendship for shipping {uniqueItemsShipped} unique {(uniqueItemsShipped != 1 ? "items" : "item")}: {farmer.Name}", LogLevel.Info);
-                        farmerData.HasGottenInitialKuumbaBonus = true;
+                        int bonusPoints = MultiplayerRewardLogic.ClaimInitialShippingBonus(farmerData, uniqueItemsShipped, this.Config.KuumbaBonus);
+                        if (bonusPoints > 0)
+                        {
+                            Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
+                            this.Monitor.Log($"Gained {bonusPoints} friendship for shipping {uniqueItemsShipped} unique {(uniqueItemsShipped != 1 ? "items" : "item")}: {farmer.Name}", LogLevel.Info);
+                        }
                     }
                 }
             }
@@ -250,7 +252,6 @@ namespace SpaceBaby.PartOfTheCommunity
             this.Characters = null;
             this.CurrentNumberOfCompletedBundles = 0;
             this.CurrentNumberOfCompletedDailyQuests = 0;
-            this.CurrentUniqueItemsShipped = 0;
             
             // Clear all player session data
             PlayerSession.ClearAll();
@@ -369,32 +370,34 @@ namespace SpaceBaby.PartOfTheCommunity
 
                 // check if shopping
                 //TODO: Add the Bus/Pam
-                if (Game1.activeClickableMenu is ShopMenu shopMenu && this.Shops.TryGetValue(Game1.currentLocation.Name, out string shopOwnerName))
+                if (Game1.activeClickableMenu is ShopMenu shopMenu
+                    && MultiplayerRewardLogic.TryClaimShopBonus(
+                        localPlayerId: Game1.player.UniqueMultiplayerID,
+                        evaluatedFarmerId: farmer.UniqueMultiplayerID,
+                        currentLocationName: Game1.currentLocation?.Name,
+                        hasOpenShopMenu: true,
+                        hasHeldItem: this.Helper.Reflection.GetField<Item>(shopMenu, "heldItem").GetValue() != null,
+                        shops: (IReadOnlyDictionary<string, string>)this.Shops,
+                        session: session,
+                        out string shopOwnerName))
                 {
                     // get shopkeeper
                     if (!this.Characters.TryGetValue(shopOwnerName, out CharacterInfo shopkeeper))
                         continue;
 
-                    // Create unique key for this farmer-shopkeeper interaction
-                    string shopKey = $"shop_{farmer.UniqueMultiplayerID}_{shopOwnerName}";
-
-                    // mark shopped - check if this specific shopkeeper has been visited by this farmer today
-                    if (!session.NearbyTalksSeen.Contains(shopKey) && this.Helper.Reflection.GetField<Item>(shopMenu, "heldItem").GetValue() != null)
+                    if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
                     {
-                        // Mark this shopkeeper as visited by this farmer
-                        session.NearbyTalksSeen.Add(shopKey);
-                        session.HasShopped = true; // Keep for any general tracking needs
-                        
-                        if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
-                        {
-                            this.AddFriendshipPoints(farmer, shopkeeperNpc, this.Config.UjamaaBonus);
-                            this.Monitor.Log($"{shopOwnerName}: Pleasure doing business with you!", LogLevel.Info);
-                        }
+                        this.AddFriendshipPoints(farmer, shopkeeperNpc, this.Config.UjamaaBonus);
+                        this.Monitor.Log($"{shopOwnerName}: Pleasure doing business with you!", LogLevel.Info);
                     }
                 }
 
                 // check if player entered a festival
-                if (!session.HasEnteredFestival && Game1.currentLocation?.currentEvent?.isFestival == true)
+                if (MultiplayerRewardLogic.TryClaimFestivalBonus(
+                    localPlayerId: Game1.player.UniqueMultiplayerID,
+                    evaluatedFarmerId: farmer.UniqueMultiplayerID,
+                    isLocalPlayerAtFestival: Game1.currentLocation?.currentEvent?.isFestival == true,
+                    session: session))
                 {
                     Utility.improveFriendshipWithEveryoneInRegion(farmer, this.Config.UmojaBonusFestival, "Town");
                     foreach (KeyValuePair<string, Friendship> pair in farmer.friendshipData.Pairs)
@@ -526,24 +529,24 @@ namespace SpaceBaby.PartOfTheCommunity
                 }
 
                 // bonus for completed daily quests
-                if (session.DaysSinceDailyQuest < 3 && session.HasTrackedDailyQuest)
+                int dailyQuestBonus = MultiplayerRewardLogic.ClaimDailyQuestBonus(session, GetCurrentDayKey(), this.Config.UjimaBonus);
+                if (dailyQuestBonus > 0)
                 {
-                    int bonusPoints = this.Config.UjimaBonus / (int)Math.Pow(2, session.DaysSinceDailyQuest);
-                    Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
-                    this.Monitor.Log($"Gained {bonusPoints} friendship with everyone for completing a daily quest.", LogLevel.Info);
+                    Utility.improveFriendshipWithEveryoneInRegion(farmer, dailyQuestBonus, "Town");
+                    this.Monitor.Log($"Gained {dailyQuestBonus} friendship with everyone for completing a daily quest.", LogLevel.Info);
                 }
-                else
+                else if (session.DaysSinceDailyQuest >= 3)
                 {
-                    if (session.DaysSinceDailyQuest >= 3)
-                        session.HasTrackedDailyQuest = false;
+                    session.HasTrackedDailyQuest = false;
                 }
 
                 // bonus for new shipped items
-                if (farmer.basicShipped.Count() > this.CurrentUniqueItemsShipped)
+                var farmerData = this.GetPlayerData(farmer);
+                int shippingBonus = MultiplayerRewardLogic.ClaimShippingDeltaBonus(farmerData, farmer.basicShipped.Count(), this.Config.KuumbaBonus);
+                if (shippingBonus > 0)
                 {
-                    int bonusPoints = this.Config.KuumbaBonus * (farmer.basicShipped.Count() - this.CurrentUniqueItemsShipped);
-                    Utility.improveFriendshipWithEveryoneInRegion(farmer, bonusPoints, "Town");
-                    this.Monitor.Log($"Gained {bonusPoints} friendship with everyone for shipping new items.", LogLevel.Info);
+                    Utility.improveFriendshipWithEveryoneInRegion(farmer, shippingBonus, "Town");
+                    this.Monitor.Log($"Gained {shippingBonus} friendship with everyone for shipping new items.", LogLevel.Info);
                 }
 
                 // save player data
@@ -795,6 +798,20 @@ namespace SpaceBaby.PartOfTheCommunity
         {
             if (npc != null && farmer != null) // e.g. Kent might not have arrived yet
                 farmer.changeFriendship(points, npc);
+        }
+
+        private static int GetCurrentDayKey()
+        {
+            int seasonOffset = Game1.currentSeason switch
+            {
+                "spring" => 0,
+                "summer" => 100,
+                "fall" => 200,
+                "winter" => 300,
+                _ => 400
+            };
+
+            return (Game1.year * 1000) + seasonOffset + Game1.dayOfMonth;
         }
 
         private PlayerData GetPlayerData(Farmer farmer)
