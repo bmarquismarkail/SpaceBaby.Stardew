@@ -224,7 +224,7 @@ namespace SpaceBaby.PartOfTheCommunity
                             if (shopkeeper.TryGetNpc(out NPC npc))
                                 this.AddFriendshipPoints(farmer, npc, bonusPoints);
                         }
-                        this.Monitor.Log($"Gained {bonusPoints} friendship from all store owners for completing {this.CurrentNumberOfCompletedBundles} {(this.CurrentNumberOfCompletedBundles > 1 ? "Bundles" : "Bundle")}: {farmer.Name}", LogLevel.Info);
+                        this.Monitor.Log($"{farmer.Name}: Gained {bonusPoints} friendship from all store owners for completing {this.CurrentNumberOfCompletedBundles} {(this.CurrentNumberOfCompletedBundles > 1 ? "Bundles" : "Bundle")}: {farmer.Name}", LogLevel.Info);
                         farmerData.HasGottenInitialUjimaBonus = true;
                     }
                     // add initial items shipped bonus
@@ -259,12 +259,18 @@ namespace SpaceBaby.PartOfTheCommunity
 
         private static List<Character> AreThereCharactersWithinDistance(Vector2 tile, int tilesAway, GameLocation location)
         {
-            List<Character> charactersWithinDistance = new List<Character>();
+            var charactersWithinDistance = new List<Character>();
+
+            // Guard against null location or missing character list (prevents NREs when farmer.currentLocation is null or not loaded).
+            if (location == null || location.characters == null)
+                return charactersWithinDistance;
+
             foreach (NPC character in location.characters)
             {
                 if (character != null && Vector2.Distance(character.Tile, tile) <= tilesAway)
                     charactersWithinDistance.Add(character);
             }
+
             return charactersWithinDistance;
         }
 
@@ -355,10 +361,10 @@ namespace SpaceBaby.PartOfTheCommunity
                                 {
                                     nearbyNpc.doEmote(Character.happyEmote);
                                     this.AddFriendshipPoints(farmer, nearbyNpc as NPC, this.Config.WitnessBonus);
-                                    this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. +{this.Config.WitnessBonus} friendship: {nearbyNpc.Name}", LogLevel.Info);
+                                    this.Monitor.Log($"{farmer.Name}: {nearbyNpc.Name} saw you talking to {friend.Name}. +{this.Config.WitnessBonus} friendship: {nearbyNpc.Name}", LogLevel.Info);
                                 }
                                 else // log TalksSeen counter
-                                    this.Monitor.Log($"{nearbyNpc.Name} saw you talking to {friend.Name}. {nearbyNpc.Name} has seen {nearbyTalkCount} talks", LogLevel.Info);
+                                    this.Monitor.Log($"{farmer.Name}: {nearbyNpc.Name} saw you talking to {friend.Name}. {nearbyNpc.Name} has seen {nearbyTalkCount} talks", LogLevel.Info);
                             }
                             
                             // Mark this specific conversation as processed
@@ -410,28 +416,30 @@ namespace SpaceBaby.PartOfTheCommunity
                         if (this.Characters.TryGetValue(name, out CharacterInfo character) && character.TryGetNpc(out NPC npc) && object.ReferenceEquals(npc.currentLocation, Game1.currentLocation))
                             npc.doEmote(friendship.IsDivorced() ? Character.angryEmote : Character.happyEmote);
                     }
-                    this.Monitor.Log("The villagers are glad you came!", LogLevel.Info);
+                    this.Monitor.Log($"The villagers are glad you came, {farmer.Name}!", LogLevel.Info);
                     session.HasEnteredFestival = true;
                 }
 
                 // check if player is getting married or having a baby
                 if (!string.IsNullOrWhiteSpace(farmer.spouse) && (Game1.weddingToday || Game1.farmEvent is BirthingEvent) && !session.HasProcessedWeddingOrBirth)
                 {
-                    this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse);
-                    foreach (CharacterRelationship relation in spouse.Relationships)
+                    if (this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse) && spouse != null)
                     {
-                        if (!relation.Character.TryGetNpc(out NPC relationNpc))
-                            continue;
+                        foreach (CharacterRelationship relation in spouse.Relationships)
+                        {
+                            if (!relation.Character.TryGetNpc(out NPC relationNpc))
+                                continue;
 
-                        if (relation.IsFamily)
-                        {
-                            this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry);
-                            this.Monitor.Log($"{relation}: Married into the family, received +{this.Config.UmojaBonusMarry} friendship", LogLevel.Info);
-                        }
-                        else
-                        {
-                            this.AddFriendshipPoints(farmer,relationNpc, this.Config.UmojaBonusMarry / 2);
-                            this.Monitor.Log($"{relation}: Married a friend, received +{this.Config.UmojaBonusMarry / 2} friendship", LogLevel.Info);
+                            if (relation.IsFamily)
+                            {
+                                this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry);
+                                this.Monitor.Log($"{relation}: {farmer.Name} married into the family, received +{this.Config.UmojaBonusMarry} friendship", LogLevel.Info);
+                            }
+                            else
+                            {
+                                this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonusMarry / 2);
+                                this.Monitor.Log($"{relation}: {farmer.Name} married a friend, received +{this.Config.UmojaBonusMarry / 2} friendship", LogLevel.Info);
+                            }
                         }
                     }
                     session.HasProcessedWeddingOrBirth = true;
@@ -467,23 +475,15 @@ namespace SpaceBaby.PartOfTheCommunity
                     if (!character.TryGetNpc(out NPC npc))
                         continue;
 
-                    // Check if any relationships received gifts by looking at all farmers who gave gifts
-                    int relationsGifted = 0;
-                    foreach (Farmer allFarmer in Game1.getAllFarmers())
-                    {
-                        var farmerSession = PlayerSession.GetSession(allFarmer);
-                        if (farmerSession.ReceivedGift)
-                        {
-                            relationsGifted += character.Relationships.Count(p => 
-                                allFarmer.friendshipData.ContainsKey(p.Character.Name) && 
-                                allFarmer.friendshipData[p.Character.Name].GiftsToday > 0);
-                        }
-                    }
+                    // Check if this farmer gave gifts to this character's relationships
+                    int relationsGifted = character.Relationships.Count(p => 
+                        farmer.friendshipData.ContainsKey(p.Character.Name) && 
+                        farmer.friendshipData[p.Character.Name].GiftsToday > 0);
                     
                     if (relationsGifted > 0)
                     {
                         this.AddFriendshipPoints(farmer, npc, this.Config.StorytellerBonus * relationsGifted);
-                        this.Monitor.Log($"{character.Name}: Friendship raised {this.Config.StorytellerBonus * relationsGifted} for gifting to someone they love.", LogLevel.Info);
+                        this.Monitor.Log($"{farmer.Name}: {character.Name}'s friendship raised {this.Config.StorytellerBonus * relationsGifted} for gifting to someone they love.", LogLevel.Info);
                     }
                 }
 
@@ -507,7 +507,7 @@ namespace SpaceBaby.PartOfTheCommunity
                             if (relation.Character.TryGetNpc(out NPC relationNpc) && relation.IsFamily)
                             {
                                 this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonus);
-                                this.Monitor.Log($"{relation}: Friendship raised {this.Config.UmojaBonus} for loving your family.", LogLevel.Info);
+                                this.Monitor.Log($"{farmer.Name}: {relation}'s Friendship raised {this.Config.UmojaBonus} for loving your family.", LogLevel.Info);
                             }
                         }
                     }
@@ -525,7 +525,7 @@ namespace SpaceBaby.PartOfTheCommunity
                         if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
                             this.AddFriendshipPoints(farmer, shopkeeperNpc, bonusPoints);
                     }
-                    this.Monitor.Log($"Gained {bonusPoints} friendship with all store owners for completing {newBundles} bundles today.", LogLevel.Info);
+                    this.Monitor.Log($"{farmer.Name} Gained {bonusPoints} friendship with all store owners for completing {newBundles} bundles today.", LogLevel.Info);
                 }
 
                 // bonus for completed daily quests
@@ -835,23 +835,65 @@ namespace SpaceBaby.PartOfTheCommunity
 
         private IDictionary<long, PlayerData> LoadPlayerData()
         {
-            IDictionary<long, PlayerData> data =
-                this.Helper.Data.ReadSaveData<Dictionary<long, PlayerData>>("data")
-                ?? this.Helper.Data.ReadJsonFile<Dictionary<long, PlayerData>>($"{Constants.SaveFolderName}/config.json");
+            // 1) Try new/current format: Dictionary<long, PlayerData>
+            try
+            {
+                IDictionary<long, PlayerData> data =
+                    this.Helper.Data.ReadSaveData<Dictionary<long, PlayerData>>("data")
+                    ?? this.Helper.Data.ReadJsonFile<Dictionary<long, PlayerData>>($"{Constants.SaveFolderName}/config.json");
 
-            if (data != null)
-                return data;
+                if (data != null)
+                    return data;
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"LoadPlayerData: couldn't read Dictionary<long,PlayerData> ({ex.Message}). Trying other formats.", LogLevel.Warn);
+            }
 
-            PlayerData legacy =
-                this.Helper.Data.ReadSaveData<PlayerData>("data")
-                ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json");
+            // 2) Try a string-keyed dictionary (older/corrupted saves or keys stored as strings)
+            try
+            {
+                var stringKeyed =
+                    this.Helper.Data.ReadSaveData<Dictionary<string, PlayerData>>("data")
+                    ?? this.Helper.Data.ReadJsonFile<Dictionary<string, PlayerData>>($"{Constants.SaveFolderName}/config.json");
 
-            if (legacy != null)
-                return new Dictionary<long, PlayerData>
+                if (stringKeyed != null)
                 {
-                    [Game1.player.UniqueMultiplayerID] = legacy
-                };
+                    var converted = new Dictionary<long, PlayerData>();
+                    foreach (var kv in stringKeyed)
+                    {
+                        if (long.TryParse(kv.Key, out long id))
+                            converted[id] = kv.Value;
+                        else
+                            converted[Game1.player.UniqueMultiplayerID] = kv.Value; // map unknown keys to the main player
+                    }
+                    return converted;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"LoadPlayerData: couldn't read Dictionary<string,PlayerData> ({ex.Message}). Trying legacy single-object format.", LogLevel.Warn);
+            }
 
+            // 3) Try legacy single PlayerData object and wrap it into a dictionary
+            try
+            {
+                PlayerData legacy =
+                    this.Helper.Data.ReadSaveData<PlayerData>("data")
+                    ?? this.Helper.Data.ReadJsonFile<PlayerData>($"{Constants.SaveFolderName}/config.json");
+
+                if (legacy != null)
+                    return new Dictionary<long, PlayerData>
+                    {
+                        [Game1.player.UniqueMultiplayerID] = legacy
+                    };
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"LoadPlayerData: couldn't read single PlayerData ({ex.Message}). Falling back to empty data.", LogLevel.Warn);
+            }
+
+            // Nothing found or all parsing failed -> return empty dictionary
             return new Dictionary<long, PlayerData>();
         }
     }
