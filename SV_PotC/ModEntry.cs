@@ -262,7 +262,7 @@ namespace SpaceBaby.PartOfTheCommunity
             var charactersWithinDistance = new List<Character>();
 
             // Guard against null location or missing character list (prevents NREs when farmer.currentLocation is null or not loaded).
-            if (location == null || location.characters == null)
+            if (location == null)
                 return charactersWithinDistance;
 
             foreach (NPC character in location.characters)
