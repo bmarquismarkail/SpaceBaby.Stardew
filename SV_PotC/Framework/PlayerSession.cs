@@ -17,6 +17,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         public bool HasTalked { get; set; }
         public bool ReceivedGift { get; set; }
         public bool HasShopped { get; set; }
+        public int? LastDailyQuestBonusDayKey { get; set; }
 
         /// <summary>Reset all daily flags while preserving persistent counters.</summary>
         public void ResetDailyFlags()
@@ -30,6 +31,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
             HasTalked = false;
             ReceivedGift = false;
             HasShopped = false;
+            LastDailyQuestBonusDayKey = null;
         }
     }
 
