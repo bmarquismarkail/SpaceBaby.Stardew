@@ -1,10 +1,22 @@
 {
   "Name": "Vertical Toolbar",
   "Author": "Brandon Marquis Markail Green (Space Baby)",
-  "Version": "1.5.7",
+  "Version": "2.0.1",
   "Description": "Enables an extra vertical bar",
   "UniqueID": "SB_VerticalToolMenu",
   "EntryDll": "VerticalToolbar.dll",
   "MinimumApiVersion": "4.3.0",
-  "UpdateKeys": [ "Nexus:943" , "GitHub:bmarquismarkail/SV_VerticalToolMenu" ]
+  "UpdateKeys": [ "Nexus:943" , "GitHub:bmarquismarkail/SV_VerticalToolMenu" ],
+  "Dependencies": [
+    {
+      "UniqueID": "SpaceBaby.SV_InventorySystem",
+      "MinimumVersion": "1.0.1",
+      "IsRequired": true
+    }
+  ],
+  "ContentPackFor": null,
+  "ModData" : {
+    "UseMultiInventoryUI" : true,
+    "ShowInventoryIndexOnToolbar" : true
+  }
 }

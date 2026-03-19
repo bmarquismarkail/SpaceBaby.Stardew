@@ -1,0 +1,11 @@
+{
+  "Name": "SB Inventory System",
+  "Author": "SpaceBaby",
+  "Version": "1.0.1",
+  "Description": "A multi-inventory system for Stardew Valley that patches Farmer CurrentItem and ActiveItem properties",
+  "UniqueID": "SpaceBaby.SV_InventorySystem",
+  "EntryDll": "SV_InventorySystem.dll",
+  "TargetPlatform": "Android",
+  "MinimumApiVersion": "3.18.0",
+  "UpdateKeys": ["Nexus:41555"]
+}

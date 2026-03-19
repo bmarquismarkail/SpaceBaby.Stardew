@@ -1,3 +1,5 @@
+// Enable nullable annotations for this file
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,6 +8,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using StardewValley;
 using StardewValley.Menus;
+using SV_InventorySystem.Framework.Reflection;
 using SObject = StardewValley.Object;
 
 namespace VerticalToolbar.Framework
@@ -18,7 +21,7 @@ namespace VerticalToolbar.Framework
         BottomRight
     }
 
-    internal class VerticalToolBar : IClickableMenu
+    public class VerticalToolBar : IClickableMenu
     {
         public List<ClickableComponent> buttons = new List<ClickableComponent>();
         public static int NUM_BUTTONS = 5;
@@ -27,23 +30,28 @@ namespace VerticalToolbar.Framework
         private float transparency = 1f;
         public Rectangle toolbarTextSource = new Rectangle(0, 256, 60, 60);
         public int numToolsInToolbar = 0;
-        private Item hoverItem;
+        private Item? hoverItem;
         public bool forceDraw = false;
         private int baseMaxItems = Game1.player.MaxItems;
+        private IMultiInventoryManager? _inventoryManager;
+        private ToolbarConfig toolbarConfig = new ToolbarConfig();
 
-        public VerticalToolBar(Orientation o, int numButtons = 5, bool forceDraw = false)
+        public VerticalToolBar(Orientation o, int numButtons = 5, IMultiInventoryManager? inventoryManager = null, bool forceDraw = false)
             : base()
         {
-
+            _inventoryManager = inventoryManager;
             orientation = o;
             NUM_BUTTONS = numButtons;
             this.forceDraw = forceDraw;
             getDimensions();
-            // For compatibility with Bigger Backpack
-            int newInventory = baseMaxItems + VerticalToolBar.NUM_BUTTONS;
-            for (int count = Game1.player.Items.Count; count < newInventory; count++)
+            // For compatibility with Bigger Backpack when not using a multi-inventory manager
+            if (_inventoryManager == null)
             {
-                Game1.player.Items.Add(null);
+                int newInventory = baseMaxItems + VerticalToolBar.NUM_BUTTONS;
+                for (int count = Game1.player.Items.Count; count < newInventory; count++)
+                {
+                    Game1.player.Items.Add(null);
+                }
             }
 
             for (int index = 0; index < NUM_BUTTONS; ++index)
@@ -53,13 +61,30 @@ namespace VerticalToolbar.Framework
                         new Rectangle(
                             this.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
                             this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
-                            Game1.tileSize, 
+                            Game1.tileSize,
                             Game1.tileSize),
                         string.Concat(index + baseMaxItems)));
             }
         }
 
-        public static Toolbar getToolbar()
+        public void DrawInventoryIndicator(SpriteBatch b, int inventoryIndex)
+        {
+            if (!toolbarConfig.ShowInventoryIndicator) return;
+
+            string text = $"Inv {inventoryIndex + 1}";
+            Vector2 textSize = Game1.smallFont.MeasureString(text);
+            Vector2 position = new Vector2(
+                this.xPositionOnScreen + (this.width - textSize.X) / 2,
+                this.yPositionOnScreen - 35
+            );
+
+            // Draw shadow
+            b.DrawString(Game1.smallFont, text, position + new Vector2(2, 2), Color.Black * this.transparency);
+            // Draw text
+            b.DrawString(Game1.smallFont, text, position, Color.Yellow * this.transparency);
+        }
+
+        public static Toolbar? getToolbar()
         {
             return Game1.onScreenMenus.OfType<Toolbar>().FirstOrDefault();
         }
@@ -68,16 +93,16 @@ namespace VerticalToolbar.Framework
         {
             Rectangle dimensionRectangle;
             dimensionRectangle.Width = Game1.tileSize * 3 / 2;
-            dimensionRectangle.Height = Game1.tileSize* NUM_BUTTONS +(Game1.tileSize / 2);
+            dimensionRectangle.Height = Game1.tileSize * NUM_BUTTONS + (Game1.tileSize / 2);
 
             switch (orientation)
             {
                 case Orientation.LeftOfToolbar:
                     dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) - (getInitialWidth() / 2);
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight(); 
+                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
                     break;
                 case Orientation.RightOfToolbar:
-                    dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) + getToolbar().width - (getInitialWidth() / 2);
+                    dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) + (getToolbar()?.width ?? 0) - (getInitialWidth() / 2);
                     dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
                     break;
                 case Orientation.BottomLeft:
@@ -85,7 +110,7 @@ namespace VerticalToolbar.Framework
                     dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
                     break;
                 case Orientation.BottomRight:
-                    dimensionRectangle.X = Game1.viewport.Width - (getInitialWidth() /2) -  IClickableMenu.spaceToClearSideBorder - getInitialWidth() - (Game1.showingHealth? 64 : 0);
+                    dimensionRectangle.X = Game1.viewport.Width - (getInitialWidth() / 2) - IClickableMenu.spaceToClearSideBorder - getInitialWidth() - (Game1.showingHealth ? 64 : 0);
                     dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
                     break;
                 default:
@@ -94,7 +119,7 @@ namespace VerticalToolbar.Framework
             this.xPositionOnScreen = dimensionRectangle.X;
             this.yPositionOnScreen = dimensionRectangle.Y;
             this.width = dimensionRectangle.Width;
-            this.height = dimensionRectangle.Height;    
+            this.height = dimensionRectangle.Height;
 
         }
         public override void receiveLeftClick(int x, int y, bool playSound = true)
@@ -103,83 +128,109 @@ namespace VerticalToolbar.Framework
                 return;
             foreach (ClickableComponent button in this.buttons)
             {
-                if (button.containsPoint(x, y))
+                if (!button.containsPoint(x, y))
+                    continue;
+
+                int slotIndex = Convert.ToInt32(button.name);
+                Item? item = GetItemAtSlot(slotIndex);
+
+                if (item == null)
+                    break;
+
+                // Simply set the tool index and let Inventory System handle CurrentItem/ActiveItem
+                Game1.player.CurrentToolIndex = slotIndex;
+                _inventoryManager?.OnToolIndexChanged(Game1.player, slotIndex);
+
+                if (playSound)
                 {
-                    Game1.player.CurrentToolIndex = Convert.ToInt32(button.name);
-                    if (Game1.player.ActiveObject != null)
+                    if (item is Tool)
+                        Game1.playSound("pickUpItem");
+                    else
                     {
                         Game1.player.showCarrying();
                         Game1.playSound("pickUpItem");
-                        break;
                     }
-                    Game1.player.showNotCarrying();
-                    Game1.playSound("stoneStep");
-                    break;
                 }
+
+                break;
             }
         }
 
-        public Item RightClick(int x, int y, Item toAddTo, bool playSound = true)
+
+
+        public Item? RightClick(int x, int y, Item? toAddTo, bool playSound = true)
         {
             foreach (ClickableComponent button in this.buttons)
             {
-                int int32 = Convert.ToInt32(button.name);
-                int x1 = x;
-                int y1 = y;
-                if (button.containsPoint(x1, y1) && Game1.player.Items[int32] != null)
-                {
-                    if (Game1.player.Items[int32] is Tool && (toAddTo == null || toAddTo is SObject) && (Game1.player.Items[int32] as Tool).canThisBeAttached((SObject)toAddTo))
-                        return (Game1.player.Items[int32] as Tool).attach((SObject)toAddTo);
-                    if (toAddTo == null)
+                int slotIndex = Convert.ToInt32(button.name);
+                if (!button.containsPoint(x, y))
+                    continue;
+
+                if (!TryResolveSlot(slotIndex, out var inventory, out var localIndex))
+                    continue;
+
+                Item? slotItem = inventory[localIndex];
+                if (slotItem == null)
+                    continue;
+
+                if (slotItem is Tool tool && Game1.player.ActiveObject != null && tool.canThisBeAttached(Game1.player.ActiveObject))
                     {
-                        if (Game1.player.Items[int32].maximumStackSize() != -1)
-                        {
-                            if (int32 == Game1.player.CurrentToolIndex && Game1.player.Items[int32] != null && Game1.player.Items[int32].Stack == 1)
-                                Game1.player.Items[int32].actionWhenStopBeingHeld(Game1.player);
-                            Item one = Game1.player.Items[int32].getOne();
-                            if (Game1.player.Items[int32].Stack > 1)
-                            {
-                                if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, new[] { new InputButton(Keys.LeftShift) }))
-                                {
-                                    one.Stack = (int)Math.Ceiling(Game1.player.Items[int32].Stack / 2.0);
-                                    Game1.player.Items[int32].Stack = Game1.player.Items[int32].Stack / 2;
-                                    goto label_15;
-                                }
-                            }
-                            if (Game1.player.Items[int32].Stack == 1)
-                                Game1.player.Items[int32] = null;
-                            else
-                                --Game1.player.Items[int32].Stack;
-                            label_15:
-                            if (Game1.player.Items[int32] != null && Game1.player.Items[int32].Stack <= 0)
-                                Game1.player.Items[int32] = null;
-                            if (playSound)
-                                Game1.playSound("dwop");
-                            return one;
-                        }
+                        tool.attach(Game1.player.ActiveObject);
+                        Game1.player.ActiveObject = null;
+                        if (playSound)
+                            Game1.playSound("dwop");
+                        break;
                     }
-                    else if (Game1.player.Items[int32].canStackWith(toAddTo) && toAddTo.Stack < toAddTo.maximumStackSize())
+
+                if (toAddTo == null)
+                {
+                    if (slotItem.maximumStackSize() != -1)
                     {
-                        if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, new[] { new InputButton(Keys.LeftShift) }))
+                        if (slotIndex == Game1.player.CurrentToolIndex && slotItem.Stack == 1)
+                            slotItem.actionWhenStopBeingHeld(Game1.player);
+
+                        Item one = slotItem.getOne();
+                        if (slotItem.Stack > 1 && Game1.isOneOfTheseKeysDown(Game1.oldKBState, new[] { new InputButton(Keys.LeftShift) }))
                         {
-                            toAddTo.Stack += (int)Math.Ceiling(Game1.player.Items[int32].Stack / 2.0);
-                            Game1.player.Items[int32].Stack = Game1.player.Items[int32].Stack / 2;
+                            one.Stack = (int)Math.Ceiling(slotItem.Stack / 2.0);
+                            slotItem.Stack = slotItem.Stack / 2;
                         }
                         else
                         {
-                            ++toAddTo.Stack;
-                            --Game1.player.Items[int32].Stack;
+                            if (slotItem.Stack == 1)
+                                inventory[localIndex] = null;
+                            else
+                                --slotItem.Stack;
                         }
+
+                        if (inventory[localIndex] != null && inventory[localIndex]!.Stack <= 0)
+                            inventory[localIndex] = null;
                         if (playSound)
                             Game1.playSound("dwop");
-                        if (Game1.player.Items[int32].Stack <= 0)
-                        {
-                            if (int32 == Game1.player.CurrentToolIndex)
-                                Game1.player.Items[int32].actionWhenStopBeingHeld(Game1.player);
-                            Game1.player.Items[int32] = null;
-                        }
-                        return toAddTo;
+                        return one;
                     }
+                }
+                else if (slotItem.canStackWith(toAddTo) && toAddTo.Stack < toAddTo.maximumStackSize())
+                {
+                    if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, new[] { new InputButton(Keys.LeftShift) }))
+                    {
+                        toAddTo.Stack += (int)Math.Ceiling(slotItem.Stack / 2.0);
+                        slotItem.Stack = slotItem.Stack / 2;
+                    }
+                    else
+                    {
+                        ++toAddTo.Stack;
+                        --slotItem.Stack;
+                    }
+                    if (playSound)
+                        Game1.playSound("dwop");
+                    if (slotItem.Stack <= 0)
+                    {
+                        if (slotIndex == Game1.player.CurrentToolIndex)
+                            slotItem.actionWhenStopBeingHeld(Game1.player);
+                        inventory[localIndex] = null;
+                    }
+                    return toAddTo;
                 }
             }
             return toAddTo;
@@ -193,11 +244,12 @@ namespace VerticalToolbar.Framework
                 if (button.containsPoint(x, y))
                 {
                     int int32 = Convert.ToInt32(button.name);
-                    if (int32 < Game1.player.Items.Count && Game1.player.Items[int32] != null)
+                    Item? item = GetItemAtSlot(int32);
+                    if (item != null)
                     {
                         button.scale = Math.Min(button.scale + 0.05f, 1.1f);
-                        this.hoverTitle = Game1.player.Items[int32].Name;
-                        this.hoverItem = Game1.player.Items[int32];
+                        this.hoverTitle = item.Name;
+                        this.hoverItem = item;
                     }
                 }
                 else
@@ -224,19 +276,32 @@ namespace VerticalToolbar.Framework
             if (baseMaxItems != Game1.player.MaxItems)
             {
                 var newInventory = Game1.player.MaxItems;
-                if (Game1.player.Items.Count() < (newInventory + NUM_BUTTONS) )
+
+                if (_inventoryManager == null)
                 {
-                    for (int i = Game1.player.Items.Count(); i < (newInventory + NUM_BUTTONS); i++)
-                        Game1.player.Items.Add(null);
+                    if (Game1.player.Items.Count() < (newInventory + NUM_BUTTONS))
+                    {
+                        for (int i = Game1.player.Items.Count(); i < (newInventory + NUM_BUTTONS); i++)
+                            Game1.player.Items.Add(null);
+                    }
+
+                    for (int i = 0; i < NUM_BUTTONS; i++)
+                    {
+                        this.buttons[i].name = string.Concat(i + newInventory);
+                        Game1.player.Items[newInventory + i] = Game1.player.Items[baseMaxItems + i];
+                        Game1.player.Items[baseMaxItems + i] = null;
+                    }
+
+                    if (Game1.player.CurrentToolIndex > (baseMaxItems - 1))
+                        Game1.player.CurrentToolIndex += (newInventory - baseMaxItems);
                 }
-                for (int i= 0; i< NUM_BUTTONS; i++)
+                else
                 {
-                    this.buttons[i].name = string.Concat(i + newInventory);
-                    Game1.player.Items[newInventory + i] = Game1.player.Items[baseMaxItems + i];
-                    Game1.player.Items[baseMaxItems + i] = null;
+                    for (int i = 0; i < NUM_BUTTONS; i++)
+                    {
+                        this.buttons[i].name = string.Concat(i + newInventory);
+                    }
                 }
-                if (Game1.player.CurrentToolIndex > (baseMaxItems -1) )
-                    Game1.player.CurrentToolIndex += (newInventory - baseMaxItems);
 
                 baseMaxItems = newInventory;
             }
@@ -273,7 +338,7 @@ namespace VerticalToolbar.Framework
             if (!forceDraw)
             {
                 int positionOnScreen1 = this.yPositionOnScreen;
-                if (Game1.options.pinToolbarToggle )
+                if (Game1.options.pinToolbarToggle)
                 {
                     this.yPositionOnScreen = Game1.viewport.Height - getInitialHeight();
                     this.transparency = Math.Min(1f, this.transparency + 0.075f);
@@ -281,7 +346,7 @@ namespace VerticalToolbar.Framework
                         this.transparency = Math.Max(0.33f, this.transparency - 0.15f);
                 }
 
-                else if ( !(orientation == Orientation.BottomLeft || orientation == Orientation.BottomRight) )
+                else if (!(orientation == Orientation.BottomLeft || orientation == Orientation.BottomRight))
                     this.yPositionOnScreen = (double)Game1.GlobalToLocal(Game1.viewport, new Vector2(Game1.player.GetBoundingBox().Center.X, Game1.player.GetBoundingBox().Center.Y)).Y > (double)(Game1.viewport.Height / 2 + Game1.tileSize) ? Game1.tileSize / 8 : Game1.viewport.Height - getInitialHeight() - Game1.tileSize / 8;
                 if (orientation == Orientation.BottomRight && Game1.showingHealth)
                 {
@@ -311,14 +376,18 @@ namespace VerticalToolbar.Framework
                     //TODO: Use more reliable coordinates
                     this.buttons[index].bounds.X,
                     this.buttons[index].bounds.Y);
-                b.Draw(Game1.menuTexture, location, new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 56 : 10)), Color.White * transparency);
-                // Need to customize it for toolset //string text = index == 9 ? "0" : (index == 10 ? "-" : (index == 11 ? "=" : string.Concat((object)(index + 1))));
-                //b.DrawString(Game1.tinyFont, text, position + new Vector2(4f, -8f), Color.DimGray * this.transparency);
-                if (Game1.player.Items.Count <= (index + baseMaxItems) || Game1.player.Items.ElementAt<Item>((index + baseMaxItems)) == null)
+
+                int slotId = Convert.ToInt32(this.buttons[index].name);
+                bool isActiveSlot = Game1.player.CurrentToolIndex == slotId;
+                b.Draw(Game1.menuTexture, location, new Rectangle?(Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, isActiveSlot ? 56 : 10)), Color.White * transparency);
+
+                var item = GetItemAtSlot(slotId);
+                if (item == null)
                 {
                     continue;
                 }
-                Game1.player.Items[(index + baseMaxItems)].drawInMenu(b, location, Game1.player.CurrentToolIndex == (index + baseMaxItems) ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
+
+                item.drawInMenu(b, location, isActiveSlot ? 0.9f : this.buttons.ElementAt<ClickableComponent>(index).scale * 0.8f, this.transparency, 0.88f);
                 toolBarIndex++;
             }
             if (toolBarIndex != numToolsInToolbar)
@@ -326,13 +395,20 @@ namespace VerticalToolbar.Framework
 
             //draw the tooltip if it's feasible, else allow another method to explicitly draw it
 
-            if(Game1.activeClickableMenu == null)
+            // Show current inventory index overlay (e.g., "Inv 1", "Inv 2")
+            if (_inventoryManager != null)
+            {
+                int activeInvIndex = _inventoryManager.GetActiveInventoryIndex(Game1.player);
+                DrawInventoryIndicator(b, activeInvIndex);
+            }
+
+            if (Game1.activeClickableMenu == null)
             {
                 drawToolTip(b);
             }
         }
-		
-		public void drawToolTip(SpriteBatch b)
+
+        public void drawToolTip(SpriteBatch b)
         {
             //If an item is hovered, shows its tooltip.
             if (this.hoverItem == null)
@@ -340,10 +416,10 @@ namespace VerticalToolbar.Framework
             IClickableMenu.drawToolTip(b, this.hoverItem.getDescription(), this.hoverItem.Name, this.hoverItem);
             this.hoverItem = null;
         }
-		
+
         public static int getInitialWidth()
         {
-            return (Game1.tileSize * 3 / 2) ;
+            return (Game1.tileSize * 3 / 2);
         }
 
         public static int getInitialHeight()
@@ -353,6 +429,67 @@ namespace VerticalToolbar.Framework
 
         public override void receiveRightClick(int x, int y, bool playSound = true)
         {
+            foreach (ClickableComponent button in this.buttons)
+            {
+                int int32 = Convert.ToInt32(button.name);
+                int x1 = x;
+                int y1 = y;
+                Item? item = GetItemAtSlot(int32);
+                if (button.containsPoint(x1, y1) && item != null)
+                {
+                    if (item is Tool tool && Game1.player.ActiveObject != null && tool.canThisBeAttached(Game1.player.ActiveObject))
+                    {
+                        tool.attach(Game1.player.ActiveObject);
+                        Game1.player.ActiveObject = null;
+                        if (playSound)
+                            Game1.playSound("dwop");
+                        break;
+                    }
+                }
+            }
+        }
+
+        private bool TryResolveSlot(int globalIndex, out IList<Item?> inventory, out int localIndex)
+        {
+            inventory = null!; // Suppress nullability warning as inventory is explicitly nullable
+            localIndex = -1;
+
+            if (_inventoryManager == null)
+            {
+                if (Game1.player.Items.Count > globalIndex)
+                {
+                    inventory = Game1.player.Items;
+                    localIndex = globalIndex;
+                    return true;
+                }
+
+                return false;
+            }
+
+            var mapping = _inventoryManager.TranslateGlobalIndex(Game1.player, globalIndex);
+            if (mapping == null)
+                return false;
+
+            var targetInventory = _inventoryManager.GetInventory(Game1.player, mapping.Value.inventoryIndex);
+            if (targetInventory == null)
+                return false;
+
+            if (mapping.Value.localIndex < 0 || mapping.Value.localIndex >= targetInventory.Count)
+                return false;
+
+            inventory = targetInventory;
+            localIndex = mapping.Value.localIndex;
+            return true;
+        }
+
+        public Item? GetItemAtSlot(int slotIndex)
+        {
+            if (TryResolveSlot(slotIndex, out var inventory, out var localIndex))
+            {
+                return inventory[localIndex];
+            }
+
+            return null;
         }
     }
 }

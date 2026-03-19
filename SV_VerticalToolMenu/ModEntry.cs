@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
@@ -6,14 +7,15 @@ using StardewValley.Menus;
 using System.Collections.Generic;
 using System.Linq;
 using VerticalToolbar.Framework;
+using SV_InventorySystem.Framework.Reflection;
 
 namespace VerticalToolbar
 {
     internal class ModEntry : Mod
     {
         /// <summary>The mod configuration.</summary>
-        private ModConfig Config;
-        private VerticalToolBar verticalToolbar;
+        private ModConfig Config = null!;
+        private VerticalToolBar verticalToolbar = null!;
         VerticalToolbar.Framework.Orientation Orientation;
         private bool isInitiated, modOverride;
         private int currentToolIndex;
@@ -21,6 +23,9 @@ namespace VerticalToolbar
         private int triggerPolling = 300;
         private int released = 0;
         private int baseMaxItems;
+        private IMultiInventoryManager? _inventoryManager;
+        private InventorySystemIntegration? _inventorySystemIntegration;
+        private ToolbarConfig toolbarConfig = null!;
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -28,6 +33,7 @@ namespace VerticalToolbar
         {
             Config = helper.ReadConfig<ModConfig>();
 
+            helper.Events.GameLoop.GameLaunched += (s, e) => OnGameLaunched();
             helper.Events.GameLoop.SaveLoaded += onSaveLoaded;
             helper.Events.GameLoop.UpdateTicked += onUpdateTicked;
             helper.Events.Input.MouseWheelScrolled += onMouseWheelScrolled;
@@ -39,9 +45,52 @@ namespace VerticalToolbar
             isInitiated = false;
             modOverride = false;
             Orientation = Config.Controls.Orientation;
+            toolbarConfig = helper.ReadConfig<ToolbarConfig>();
+        }
+        private void SwitchToNextInventory()
+        {
+            if (_inventoryManager == null) return;
+            int currentInvIdx = _inventoryManager.GetActiveInventoryIndex(Game1.player);
+            int maxInventories = _inventoryManager.GetInventoryCount(Game1.player);
+            int nextIdx = (currentInvIdx + 1) % maxInventories;
+            _inventoryManager.SetActiveInventoryIndex(Game1.player, nextIdx);
+            Monitor.Log($"Switched to inventory {nextIdx}", LogLevel.Debug);
         }
 
-        private void onReturnToTitle(object sender, ReturnedToTitleEventArgs e)
+        private void SwitchToPreviousInventory()
+        {
+            if (_inventoryManager == null) return;
+            int currentInvIdx = _inventoryManager.GetActiveInventoryIndex(Game1.player);
+            int maxInventories = _inventoryManager.GetInventoryCount(Game1.player);
+            int prevIdx = (currentInvIdx - 1 + maxInventories) % maxInventories;
+            _inventoryManager.SetActiveInventoryIndex(Game1.player, prevIdx);
+            Monitor.Log($"Switched to inventory {prevIdx}", LogLevel.Debug);
+        }
+        private void OnGameLaunched()
+        {
+            try
+            {
+                var inventoryModId = "SpaceBaby.SV_InventorySystem";
+                var inventoryMod = Helper.ModRegistry.GetApi<IMultiInventoryManager>(inventoryModId);
+
+                if (inventoryMod != null)
+                {
+                    _inventoryManager = inventoryMod;
+                    _inventorySystemIntegration = new InventorySystemIntegration(this.Monitor, _inventoryManager);
+                    this.Monitor.Log("SV_InventorySystem detected. Multi-inventory features enabled.", LogLevel.Info);
+                }
+                else
+                {
+                    this.Monitor.Log("SV_InventorySystem not detected. Multi-inventory features disabled.", LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"Error while trying to integrate with SV_InventorySystem: {ex}", LogLevel.Error);
+            }
+        }
+
+        private void onReturnToTitle(object? sender, ReturnedToTitleEventArgs e)
         {
             isInitiated = false;
         }
@@ -49,7 +98,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the game state is updated (???60 times per second).</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onUpdateTicked(object sender, UpdateTickedEventArgs e)
+        private void onUpdateTicked(object? sender, UpdateTickedEventArgs e)
         {
             if (!isInitiated)
                 return;
@@ -57,6 +106,16 @@ namespace VerticalToolbar
             // check input modifier
             var input = this.Helper.Input;
             modOverride = false;
+
+            if (input.IsDown(Config.Controls.SwitchInventoryNext))
+            {
+                SwitchToNextInventory();
+            }
+            if (input.IsDown(Config.Controls.SwitchInventoryPrev))
+            {
+                SwitchToPreviousInventory();
+            }
+
             if (!Game1.player.UsingTool && input.IsDown(Config.Controls.HoldToActivateSlotKeys))
             {
                 if (input.IsDown(Config.Controls.ChooseSlot1))
@@ -122,13 +181,28 @@ namespace VerticalToolbar
         /// <summary>Raised after the player presses a button on the keyboard, controller, or mouse.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onButtonPressed(object sender, ButtonPressedEventArgs e)
+        private void onButtonPressed(object? sender, ButtonPressedEventArgs e)
         {
             if (!isInitiated)
                 return;
 
+            // Handle left mouse click on vertical toolbar
+            if (e.Button == SButton.MouseLeft && Game1.activeClickableMenu == null)
+            {
+                var mousePos = this.Helper.Input.GetCursorPosition();
+                int x = (int)mousePos.GetScaledScreenPixels().X;
+                int y = (int)mousePos.GetScaledScreenPixels().Y;
+                
+                if (verticalToolbar.isWithinBounds(x, y))
+                {
+                    verticalToolbar.receiveLeftClick(x, y, true);
+                    this.Helper.Input.Suppress(SButton.MouseLeft);
+                    return;
+                }
+            }
+
             // set scrolling
-            if(verticalToolbar.numToolsInToolbar > 0 && (e.Button == this.Config.Controls.ScrollLeft || e.Button == this.Config.Controls.ScrollRight))
+            if (verticalToolbar.numToolsInToolbar > 0 && (e.Button == this.Config.Controls.ScrollLeft || e.Button == this.Config.Controls.ScrollRight))
             {
                 this.Helper.Input.Suppress(e.Button);
                 Game1.player.CurrentToolIndex = currentToolIndex;
@@ -148,7 +222,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the player releases a button on the keyboard, controller, or mouse.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onButtonReleased(object sender, ButtonReleasedEventArgs e)
+        private void onButtonReleased(object? sender, ButtonReleasedEventArgs e)
         {
             if (!isInitiated)
                 return;
@@ -165,13 +239,13 @@ namespace VerticalToolbar
         /// <summary>Raised after a game menu is opened, closed, or replaced.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onMenuChanged(object sender, MenuChangedEventArgs e)
+        private void onMenuChanged(object? sender, MenuChangedEventArgs e)
         {
             if (e.NewMenu is GameMenu menu && menu.currentTab == GameMenu.inventoryTab)
             {
                 List<IClickableMenu> pages = this.Helper.Reflection.GetField<List<IClickableMenu>>(menu, "pages").GetValue();
                 pages.RemoveAt(0);
-                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height));
+                pages.Insert(0, new ModInventoryPage(menu.xPositionOnScreen, menu.yPositionOnScreen, menu.width, menu.height, _inventoryManager));
             }
         }
 
@@ -210,7 +284,9 @@ namespace VerticalToolbar
                     }
                 }
 
-                if (Game1.player.Items[currentToolIndex] != null)
+                // Use VerticalToolBar's method to safely get item from any inventory
+                Item? itemAtSlot = verticalToolbar.GetItemAtSlot(currentToolIndex);
+                if (itemAtSlot != null)
                     break;
             }
             modOverride = true;
@@ -219,7 +295,7 @@ namespace VerticalToolbar
         /// <summary>Raised after the player scrolls the mouse wheel.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onMouseWheelScrolled(object sender, MouseWheelScrolledEventArgs e)
+        private void onMouseWheelScrolled(object? sender, MouseWheelScrolledEventArgs e)
         {
             if (!isInitiated)
                 return;
@@ -231,10 +307,10 @@ namespace VerticalToolbar
         /// <summary>Raised after the player loads a save slot and the world is initialised.</summary>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
-        private void onSaveLoaded(object sender, SaveLoadedEventArgs e)
+        private void onSaveLoaded(object? sender, SaveLoadedEventArgs e)
         {
             baseMaxItems = Game1.player.MaxItems;
-            verticalToolbar = new VerticalToolBar(this.Orientation);
+            verticalToolbar = new VerticalToolBar(this.Orientation, VerticalToolBar.NUM_BUTTONS, _inventoryManager, false);
             Game1.onScreenMenus.Add(verticalToolbar);
 
             currentToolIndex = Game1.player.CurrentToolIndex;
@@ -251,7 +327,7 @@ namespace VerticalToolbar
                 Game1.player.CurrentItem.actionWhenStopBeingHeld(Game1.player);
             if (right)
             {
-                List<Item> range = Game1.player.Items.ToList().GetRange(12,baseMaxItems - 12);
+                List<Item> range = Game1.player.Items.ToList().GetRange(12, baseMaxItems - 12);
                 range.AddRange(Game1.player.Items.ToList().GetRange(0, 12));
                 range.AddRange(Game1.player.Items.ToList().GetRange(baseMaxItems, VerticalToolBar.NUM_BUTTONS));
                 Game1.player.setInventory(range);
@@ -269,9 +345,9 @@ namespace VerticalToolbar
                 Game1.player.CurrentItem.actionWhenBeingHeld(Game1.player);
             for (int index = 0; index < Game1.onScreenMenus.Count; ++index)
             {
-                if (Game1.onScreenMenus[index] is Toolbar)
+                if (Game1.onScreenMenus[index] is Toolbar toolbar)
                 {
-                    (Game1.onScreenMenus[index] as Toolbar).shifted(right);
+                    toolbar.shifted(right);
                     break;
                 }
             }
