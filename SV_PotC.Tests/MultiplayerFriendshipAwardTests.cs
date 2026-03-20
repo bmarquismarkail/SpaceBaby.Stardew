@@ -11,6 +11,7 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(InitialShippingBonus_DoesNotReplayFullShippedHistory_ForLateOrAffectedFarmhands), InitialShippingBonus_DoesNotReplayFullShippedHistory_ForLateOrAffectedFarmhands);
         Run(nameof(UniqueShippingBonus_DoesNotAwardMoreThanOnce_PerObservedShippingDelta), UniqueShippingBonus_DoesNotAwardMoreThanOnce_PerObservedShippingDelta);
         Run(nameof(DailyQuestBonus_IsBoundToTheFarmerWhoCompletedTheQuest), DailyQuestBonus_IsBoundToTheFarmerWhoCompletedTheQuest);
+        Run(nameof(LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer), LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer);
     }
 
     private static void Run(string name, Action test)
@@ -127,6 +128,23 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.Equal(4, hostAward, "The farmer who completed the quest should get the day-zero quest bonus.");
         Assert.Equal(0, hostDuplicateAward, "The same save day must not re-award the quest bonus.");
         Assert.Equal(0, farmhandAward, "Farmhands without tracked quest completion must not receive the quest bonus.");
+    }
+
+    private void LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer()
+    {
+        Dictionary<string, bool> legacyFlags = new()
+        {
+            [nameof(PlayerData.HasGottenInitialUjimaBonus)] = true,
+            [nameof(PlayerData.HasGottenInitialKuumbaBonus)] = false
+        };
+
+        bool migrated = PlayerDataMigration.TryConvertLegacyFlagMap(legacyFlags, playerId: 42, out IDictionary<long, PlayerData>? migratedData);
+
+        Assert.True(migrated, "Legacy property-name save data should be recognized as supported migration input.");
+        Assert.Equal(1, migratedData!.Count, "The migrated data should contain one player record.");
+        Assert.True(migratedData.ContainsKey(42), "The current player should receive the migrated record.");
+        Assert.True(migratedData[42].HasGottenInitialUjimaBonus, "Known legacy Ujima state should be preserved.");
+        Assert.False(migratedData[42].HasGottenInitialKuumbaBonus, "Known legacy Kuumba state should be preserved.");
     }
 }
 
