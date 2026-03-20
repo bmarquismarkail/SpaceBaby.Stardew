@@ -2,7 +2,7 @@
   <PropertyGroup>
     <RootNamespace>SpaceBaby.PartOfTheCommunity</RootNamespace>
     <AssemblyName>PartOfTheCommunity</AssemblyName>
-    <Version>1.3.1</Version>
+    <Version>1.3.2</Version>
     <!-- Prevent duplicate assembly attribute generation when explicit attributes exist -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   <!-- Prevent generation of the TargetFrameworkAttribute which can duplicate when custom assembly info is present -->
