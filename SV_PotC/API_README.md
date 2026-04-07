@@ -50,13 +50,73 @@ public interface IPartOfTheCommunityApi
 }
 ```
 
+## Supporting Types
+
+The API methods above use the following public types from `SpaceBaby.PartOfTheCommunity.Framework`:
+
+```csharp
+public enum CharacterType
+{
+    Villager,
+    Player,
+    Child
+}
+
+public enum Relationship
+{
+    Brother,
+    Sister,
+    HalfBrother,
+    HalfSister,
+    Son,
+    Daughter,
+    StepSon,
+    StepDaughter,
+    Grandson,
+    Granddaughter,
+    GreatGrandson,
+    GreatGranddaughter,
+    Father,
+    Mother,
+    StepFather,
+    StepMother,
+    Grandfather,
+    Grandmother,
+    GreatGrandfather,
+    GreatGrandmother,
+    Husband,
+    Wife,
+    Aunt,
+    Uncle,
+    Niece,
+    Nephew,
+    Godfather,
+    Godmother,
+    Godson,
+    Goddaughter,
+    Cousin,
+    Friend,
+    WarTorn
+}
+
+public class CharacterInfo
+{
+    public string Name { get; }
+    public bool IsMale { get; }
+    public CharacterType Type { get; }
+}
+```
+
+`GetAllCharacters()` returns a read-only dictionary of character names to `CharacterInfo` objects using this shape.
+
 ## Available Relationship Types
 
 The following relationship types are available:
 
 ### Family
+
 - Brother/Sister
-- HalfBrother/HalfSister  
+- HalfBrother/HalfSister
 - Son/Daughter
 - StepSon/StepDaughter
 - Father/Mother
@@ -71,6 +131,7 @@ The following relationship types are available:
 - Cousin
 
 ### Other
+
 - Friend
 - Godfather/Godmother
 - Godson/Goddaughter
@@ -149,25 +210,31 @@ You can create character packs using JSON files. Place them in the `Data` folder
 
 ### JSON Structure Details
 
-- **Root object**: Contains a `characters` object
-- **Character keys**: Use lowercase names as keys (e.g., `"mycharacter"`)
-- **displayName**: The proper capitalized name shown in game
-- **gender**: `"M"` for male, `"F"` for female
-- **type**: Character type (`"Villager"`, `"Player"`, or `"Child"`)
-- **relationships**: Object where keys are other character keys and values are relationship types (lowercase)
-- **friends**: Object where keys are other character keys and values are `true`
+- **Root object**: Contains a `characters` object.
+- **Character keys**: Use lowercase names as keys (for example, `"mycharacter"`).
+- **displayName**: The proper capitalized name shown in game.
+- **gender**: `"M"` for male, `"F"` for female.
+- **type**: Character type (`"Villager"`, `"Player"`, or `"Child"`).
+- **relationships**: Object where keys are other character keys or names and values are relationship types (lowercase). In the flat JSON format, these entries are loaded **exactly as written for that character only**; they are **not** automatically mirrored or gender-adjusted on the referenced character.
+- **friends**: Object where keys are other character keys or names and values are `true`. In the flat JSON format, setting `"other": true` adds a friend link from the current character to `other`, but does **not** automatically add the inverse friend entry on `other`.
+
+> The flat JSON format shown above is the recommended format for new integrations. Legacy packs are still supported for backwards compatibility.
+>
+> **Reciprocal relationship note:** If `A` has `"relationships": { "b": "brother" }`, PotC will load that as **A -> B = brother** only. It will **not** infer `B -> A = sister` or `brother`. If you want both sides in flat JSON, define both entries explicitly (for example, `A -> B = sister` and `B -> A = brother`). The same rule applies to `friends`: define the inverse entry too if you want both characters to list each other as friends.
 
 ### Relationship Types (lowercase in JSON)
 
 Use these lowercase strings in the JSON relationships:
 
 - **Family**: `brother`, `sister`, `halfbrother`, `halfsister`, `son`, `daughter`, `stepson`, `stepdaughter`, `father`, `mother`, `stepfather`, `stepmother`, `grandfather`, `grandmother`, `greatgrandfather`, `greatgrandmother`, `grandson`, `granddaughter`, `greatgrandson`, `greatgranddaughter`, `husband`, `wife`, `uncle`, `aunt`, `nephew`, `niece`, `cousin`
+
 - **Other**: `friend`, `godfather`, `godmother`, `godson`, `goddaughter`, `wartorn`
-```
 
 ## Notes
 
-- Characters must be registered before adding relationships
-- All relationships are bidirectional (adding A->B also adds B->A)
-- The mod will log warnings for invalid operations (missing characters, etc.)
-- Character registration should happen in the `GameLaunched` event to ensure proper initialization
+- Characters must be registered before adding relationships.
+- Character names are matched case-insensitively by the API.
+- Flat-pack relationship and friend keys can reference characters from the same pack, default PotC data, or previously registered characters by key or display name.
+- `AddRelationship` and `AddFriendship` are bidirectional API calls. The flat JSON `relationships` and `friends` objects are **not** auto-mirrored; define both sides explicitly if you want reciprocal data.
+- The mod will log warnings for invalid operations (missing characters, duplicate registrations, unknown relationship types, etc.).
+- Character registration should happen in the `GameLaunched` event to ensure proper initialization.

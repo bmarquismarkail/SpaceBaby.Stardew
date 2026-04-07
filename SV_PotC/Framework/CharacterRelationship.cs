@@ -1,13 +1,13 @@
 ﻿namespace SpaceBaby.PartOfTheCommunity.Framework
 {
-    /// <summary>Tracked data for an NPC relationship.</summary>
-    internal class CharacterRelationship
+    /// <summary>Tracked data for a character relationship exposed through the API.</summary>
+    public class CharacterRelationship
     {
         /*********
         ** Accessors
         *********/
         /// <summary>The target character.</summary>
-        public CharacterInfo Character { get; set; }
+        public CharacterInfo Character { get; }
 
         /// <summary>The target character's relationship to the original character (like 'Mother').</summary>
         public Relationship Relationship { get; }

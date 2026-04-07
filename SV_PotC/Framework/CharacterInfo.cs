@@ -5,9 +5,15 @@ using StardewValley;
 
 namespace SpaceBaby.PartOfTheCommunity.Framework
 {
-    /// <summary>Tracked data for an NPC.</summary>
-    internal class CharacterInfo
+    /// <summary>Tracked data for a character registered with the Part of the Community API.</summary>
+    public class CharacterInfo
     {
+        /*********
+        ** Fields
+        *********/
+        private readonly List<CharacterRelationship> relationships = new();
+
+
         /*********
         ** Accessors
         *********/
@@ -21,10 +27,10 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         public bool IsMale { get; }
 
         /// <summary>Whether the NPC owns a shop.</summary>
-        public bool IsShopOwner { get; set; }
+        public bool IsShopOwner { get; internal set; }
 
-        /// <summary>The NPC's relationships with other NPCs.</summary>
-        public IList<CharacterRelationship> Relationships { get; } = new List<CharacterRelationship>();
+        /// <summary>The NPC's known relationships with other characters.</summary>
+        public IReadOnlyList<CharacterRelationship> Relationships => this.relationships;
 
 
         /*********
@@ -46,7 +52,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="character">The target character.</param>
         public void AddRelationship(Relationship relationship, CharacterInfo character)
         {
-            this.Relationships.Add(new CharacterRelationship(relationship, character));
+            this.relationships.Add(new CharacterRelationship(relationship, character));
         }
 
         /// <summary>Get the in-game instance for this character.</summary>

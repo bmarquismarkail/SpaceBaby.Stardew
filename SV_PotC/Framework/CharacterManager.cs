@@ -19,7 +19,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         private readonly IMonitor Monitor;
 
         /// <summary>The registered characters by name.</summary>
-        private readonly Dictionary<string, CharacterInfo> Characters = new Dictionary<string, CharacterInfo>();
+        private readonly Dictionary<string, CharacterInfo> Characters = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Whether characters have been loaded.</summary>
         private bool IsLoaded = false;
@@ -122,7 +122,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <returns>A dictionary of character names to character info.</returns>
         public IReadOnlyDictionary<string, CharacterInfo> GetAllCharacters()
         {
-            return this.Characters.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            return new Dictionary<string, CharacterInfo>(this.Characters, StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>Check if a character is registered.</summary>
@@ -164,9 +164,13 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                 if (pack == null)
                 {
                     if (isRequired)
-                        this.Monitor.Log($"Required character pack file '{relativePath}' not found.", LogLevel.Error);
-                    else
-                        this.Monitor.Log($"Character pack file '{relativePath}' not found, skipping.", LogLevel.Debug);
+                    {
+                        string message = $"Required character pack file '{relativePath}' not found.";
+                        this.Monitor.Log(message, LogLevel.Error);
+                        throw new InvalidOperationException(message);
+                    }
+
+                    this.Monitor.Log($"Character pack file '{relativePath}' not found, skipping.", LogLevel.Debug);
                     return;
                 }
 
@@ -201,9 +205,9 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
 
                 if (!this.Characters.ContainsKey(entry.DisplayName))
                 {
-                    bool isMale = entry.Gender?.ToUpper() == "M";
+                    bool isMale = string.Equals(entry.Gender, "M", StringComparison.OrdinalIgnoreCase);
                     CharacterType type = Enum.TryParse<CharacterType>(entry.Type, out var parsedType) ? parsedType : CharacterType.Villager;
-                    
+
                     var character = new CharacterInfo(entry.DisplayName, isMale, type);
                     this.Characters[entry.DisplayName] = character;
                 }
@@ -224,9 +228,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     string otherCharKey = relKvp.Key;
                     string relationshipStr = relKvp.Value;
 
-                    // Find the other character by their key in the pack
-                    if (pack.Characters.TryGetValue(otherCharKey, out CharacterEntry otherEntry) &&
-                        this.Characters.TryGetValue(otherEntry.DisplayName, out CharacterInfo otherCharacter))
+                    if (this.TryResolveCharacter(pack, otherCharKey, out CharacterInfo otherCharacter))
                     {
                         if (Enum.TryParse<Relationship>(relationshipStr, true, out Relationship relationship))
                         {
@@ -234,7 +236,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                         }
                         else
                         {
-                            this.Monitor.Log($"Unknown relationship type '{relationshipStr}' for {entry.DisplayName} -> {otherEntry.DisplayName}", LogLevel.Warn);
+                            this.Monitor.Log($"Unknown relationship type '{relationshipStr}' for {entry.DisplayName} -> {otherCharacter.Name}", LogLevel.Warn);
                         }
                     }
                     else
@@ -249,11 +251,10 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     string friendKey = friendKvp.Key;
                     bool isFriend = friendKvp.Value;
 
-                    if (!isFriend) continue;
+                    if (!isFriend)
+                        continue;
 
-                    // Find the friend character by their key in the pack
-                    if (pack.Characters.TryGetValue(friendKey, out CharacterEntry friendEntry) &&
-                        this.Characters.TryGetValue(friendEntry.DisplayName, out CharacterInfo friendCharacter))
+                    if (this.TryResolveCharacter(pack, friendKey, out CharacterInfo friendCharacter))
                     {
                         character.AddRelationship(Relationship.Friend, friendCharacter);
                     }
@@ -265,6 +266,32 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
             }
 
             this.Monitor.Log($"Loaded {pack.Characters.Count} characters from flat format in '{relativePath}'", LogLevel.Debug);
+        }
+
+        /// <summary>Try to resolve a character by pack key or display name.</summary>
+        /// <param name="pack">The current flat character pack.</param>
+        /// <param name="characterId">The lower-case key or display name supplied in JSON.</param>
+        /// <param name="character">The resolved character, if found.</param>
+        /// <returns>Returns whether the character could be resolved.</returns>
+        private bool TryResolveCharacter(CharacterPackFlat pack, string characterId, out CharacterInfo character)
+        {
+            character = null;
+
+            if (string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            if (pack.Characters.TryGetValue(characterId, out CharacterEntry packEntry)
+                && !string.IsNullOrWhiteSpace(packEntry.DisplayName)
+                && this.Characters.TryGetValue(packEntry.DisplayName, out character))
+            {
+                return true;
+            }
+
+            if (this.Characters.TryGetValue(characterId, out character))
+                return true;
+
+            character = this.Characters.Values.FirstOrDefault(p => string.Equals(p.Name, characterId, StringComparison.OrdinalIgnoreCase));
+            return character != null;
         }
 
         /// <summary>Load a character pack from the legacy format.</summary>

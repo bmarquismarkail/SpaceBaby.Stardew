@@ -5,7 +5,7 @@
       "gender": "M",
       "type": "Villager",
       "relationships": {
-        "anotherexample": "brother"
+        "anotherexample": "sister"
       },
       "friends": {
         "sam": true
@@ -16,7 +16,7 @@
       "gender": "F",
       "type": "Villager",
       "relationships": {
-        "examplecharacter": "sister"
+        "examplecharacter": "brother"
       },
       "friends": {
         "abigail": true

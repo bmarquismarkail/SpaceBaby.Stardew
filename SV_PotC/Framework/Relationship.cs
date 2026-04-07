@@ -1,7 +1,7 @@
 ﻿namespace SpaceBaby.PartOfTheCommunity.Framework
 {
-    /// <summary>A relationship type.</summary>
-    internal enum Relationship
+    /// <summary>A relationship type exposed through the Part of the Community API.</summary>
+    public enum Relationship
     {
         /****
         ** Siblings
@@ -29,6 +29,9 @@
 
         /// <summary>An adopted son.</summary>
         StepSon,
+
+        /// <summary>An adopted daughter.</summary>
+        StepDaughter,
 
         /// <summary>A grandson.</summary>
         Grandson,
@@ -93,6 +96,12 @@
 
         /// <summary>A godfather.</summary>
         Godfather,
+
+        /// <summary>A godmother.</summary>
+        Godmother,
+
+        /// <summary>A godson.</summary>
+        Godson,
 
         /// <summary>A goddaughter.</summary>
         Goddaughter,

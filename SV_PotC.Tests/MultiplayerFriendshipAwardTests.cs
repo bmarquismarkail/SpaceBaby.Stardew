@@ -12,6 +12,8 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(UniqueShippingBonus_DoesNotAwardMoreThanOnce_PerObservedShippingDelta), UniqueShippingBonus_DoesNotAwardMoreThanOnce_PerObservedShippingDelta);
         Run(nameof(DailyQuestBonus_IsBoundToTheFarmerWhoCompletedTheQuest), DailyQuestBonus_IsBoundToTheFarmerWhoCompletedTheQuest);
         Run(nameof(LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer), LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer);
+        Run(nameof(RelationshipEnum_ContainsDocumentedApiMembers), RelationshipEnum_ContainsDocumentedApiMembers);
+        Run(nameof(CharacterInfo_TracksRelationshipsThroughPublicApiModel), CharacterInfo_TracksRelationshipsThroughPublicApiModel);
     }
 
     private static void Run(string name, Action test)
@@ -145,6 +147,25 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.True(migratedData.ContainsKey(42), "The current player should receive the migrated record.");
         Assert.True(migratedData[42].HasGottenInitialUjimaBonus, "Known legacy Ujima state should be preserved.");
         Assert.False(migratedData[42].HasGottenInitialKuumbaBonus, "Known legacy Kuumba state should be preserved.");
+    }
+
+    private void RelationshipEnum_ContainsDocumentedApiMembers()
+    {
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.StepDaughter)), "The API should expose the documented StepDaughter relationship.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.Godmother)), "The API should expose the documented Godmother relationship.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.Godson)), "The API should expose the documented Godson relationship.");
+    }
+
+    private void CharacterInfo_TracksRelationshipsThroughPublicApiModel()
+    {
+        CharacterInfo robin = new("Robin", isMale: false);
+        CharacterInfo sebastian = new("Sebastian", isMale: true);
+
+        robin.AddRelationship(Relationship.StepMother, sebastian);
+
+        Assert.Equal(1, robin.Relationships.Count, "A registered API character should expose its relationship data.");
+        Assert.Equal(Relationship.StepMother, robin.Relationships[0].Relationship, "The stored relationship should match the one added through the API model.");
+        Assert.Equal("Sebastian", robin.Relationships[0].Character.Name, "The relationship target should preserve the other character's public name.");
     }
 }
 
