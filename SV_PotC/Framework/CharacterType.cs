@@ -1,7 +1,7 @@
 ﻿namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>A character type.</summary>
-    public enum CharacterType
+    internal enum CharacterType
     {
         /// <summary>A villager NPC.</summary>
         Villager,
