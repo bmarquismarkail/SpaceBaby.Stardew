@@ -27,10 +27,10 @@
         /// <summary>A daughter.</summary>
         Daughter,
 
-        /// <summary>An adopted son.</summary>
+        /// <summary>A son of one's spouse from a previous relationship.</summary>
         StepSon,
 
-        /// <summary>An adopted daughter.</summary>
+        /// <summary>A daughter of one's spouse from a previous relationship.</summary>
         StepDaughter,
 
         /// <summary>A grandson.</summary>
@@ -54,10 +54,10 @@
         /// <summary>A mother.</summary>
         Mother,
 
-        /// <summary>An adoptive father.</summary>
+        /// <summary>A father of one's spouse (a step-father).</summary>
         StepFather,
 
-        /// <summary>An adoptive mother.</summary>
+        /// <summary>A mother of one's spouse (a step-mother).</summary>
         StepMother,
 
         /// <summary>A grandfather.</summary>
@@ -117,5 +117,39 @@
 
         /// <summary>An acquaintance separated by the gulf of a past war.</summary>
         WarTorn
+    }
+
+    /// <summary>Helpers for working with relationship values.</summary>
+    public static class RelationshipExtensions
+    {
+        /// <summary>Get the inverse relationship from the target character back to the source character.</summary>
+        /// <param name="relationship">The relationship from source to target.</param>
+        /// <param name="sourceIsMale">Whether the source character is male.</param>
+        /// <returns>The inverse relationship from target to source.</returns>
+        public static Relationship GetInverse(this Relationship relationship, bool sourceIsMale)
+        {
+            return relationship switch
+            {
+                Relationship.Brother or Relationship.Sister => sourceIsMale ? Relationship.Brother : Relationship.Sister,
+                Relationship.HalfBrother or Relationship.HalfSister => sourceIsMale ? Relationship.HalfBrother : Relationship.HalfSister,
+                Relationship.Son or Relationship.Daughter => sourceIsMale ? Relationship.Father : Relationship.Mother,
+                Relationship.StepSon or Relationship.StepDaughter => sourceIsMale ? Relationship.StepFather : Relationship.StepMother,
+                Relationship.Father or Relationship.Mother => sourceIsMale ? Relationship.Son : Relationship.Daughter,
+                Relationship.StepFather or Relationship.StepMother => sourceIsMale ? Relationship.StepSon : Relationship.StepDaughter,
+                Relationship.Grandfather or Relationship.Grandmother => sourceIsMale ? Relationship.Grandson : Relationship.Granddaughter,
+                Relationship.GreatGrandfather or Relationship.GreatGrandmother => sourceIsMale ? Relationship.GreatGrandson : Relationship.GreatGranddaughter,
+                Relationship.Grandson or Relationship.Granddaughter => sourceIsMale ? Relationship.Grandfather : Relationship.Grandmother,
+                Relationship.GreatGrandson or Relationship.GreatGranddaughter => sourceIsMale ? Relationship.GreatGrandfather : Relationship.GreatGrandmother,
+                Relationship.Husband or Relationship.Wife => sourceIsMale ? Relationship.Husband : Relationship.Wife,
+                Relationship.Aunt or Relationship.Uncle => sourceIsMale ? Relationship.Nephew : Relationship.Niece,
+                Relationship.Nephew or Relationship.Niece => sourceIsMale ? Relationship.Uncle : Relationship.Aunt,
+                Relationship.Godfather or Relationship.Godmother => sourceIsMale ? Relationship.Godson : Relationship.Goddaughter,
+                Relationship.Godson or Relationship.Goddaughter => sourceIsMale ? Relationship.Godfather : Relationship.Godmother,
+                Relationship.Cousin => Relationship.Cousin,
+                Relationship.Friend => Relationship.Friend,
+                Relationship.WarTorn => Relationship.WarTorn,
+                _ => relationship
+            };
+        }
     }
 }

@@ -6,16 +6,16 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
     public class CharacterPack
     {
         /// <summary>The name of this character pack.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         /// <summary>The author of this character pack.</summary>
-        public string Author { get; set; }
+        public string Author { get; set; } = string.Empty;
 
         /// <summary>The version of this character pack.</summary>
-        public string Version { get; set; }
+        public string Version { get; set; } = string.Empty;
 
         /// <summary>A description of this character pack.</summary>
-        public string Description { get; set; }
+        public string Description { get; set; } = string.Empty;
 
         /// <summary>The characters defined in this pack.</summary>
         public List<CharacterData> Characters { get; set; } = new List<CharacterData>();

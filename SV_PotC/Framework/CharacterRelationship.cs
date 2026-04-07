@@ -1,4 +1,6 @@
-﻿namespace SpaceBaby.PartOfTheCommunity.Framework
+﻿using System;
+
+namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>Tracked data for a character relationship exposed through the API.</summary>
     public class CharacterRelationship
@@ -27,6 +29,8 @@
         /// <param name="character">The target character.</param>
         public CharacterRelationship(Relationship relationship, CharacterInfo character)
         {
+            ArgumentNullException.ThrowIfNull(character);
+
             this.Relationship = relationship;
             this.Character = character;
         }

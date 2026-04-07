@@ -63,27 +63,88 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
             this.Monitor.Log($"Loaded {this.Characters.Count} characters from data files.", LogLevel.Info);
         }
 
+        /// <summary>Try to register a character that can have relationships with others.</summary>
+        /// <param name="name">The character's name.</param>
+        /// <param name="isMale">Whether the character is male.</param>
+        /// <param name="type">The character type (defaults to Villager).</param>
+        /// <returns>Returns whether the character was registered.</returns>
+        public bool TryRegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager)
+        {
+            name = name?.Trim();
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                this.Monitor.Log("Cannot register character with null or empty name.", LogLevel.Warn);
+                return false;
+            }
+
+            if (this.Characters.ContainsKey(name))
+            {
+                this.Monitor.Log($"Character '{name}' is already registered. Skipping duplicate registration.", LogLevel.Debug);
+                return false;
+            }
+
+            var character = new CharacterInfo(name, isMale, type);
+            this.Characters[name] = character;
+            this.Monitor.Log($"Registered character '{name}' via API.", LogLevel.Trace);
+            return true;
+        }
+
         /// <summary>Register a character that can have relationships with others.</summary>
         /// <param name="name">The character's name.</param>
         /// <param name="isMale">Whether the character is male.</param>
         /// <param name="type">The character type (defaults to Villager).</param>
         public void RegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager)
         {
-            if (string.IsNullOrWhiteSpace(name))
+            this.TryRegisterCharacter(name, isMale, type);
+        }
+
+        /// <summary>Try to add a relationship between two characters.</summary>
+        /// <param name="characterA">The first character's name.</param>
+        /// <param name="relationshipA">Character A's relationship to character B.</param>
+        /// <param name="characterB">The second character's name.</param>
+        /// <param name="relationshipB">Character B's relationship to character A.</param>
+        /// <returns>Returns whether a new relationship was added.</returns>
+        public bool TryAddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB)
+        {
+            characterA = characterA?.Trim();
+            characterB = characterB?.Trim();
+
+            if (string.IsNullOrWhiteSpace(characterA) || string.IsNullOrWhiteSpace(characterB))
             {
-                this.Monitor.Log("Cannot register character with null or empty name.", LogLevel.Warn);
-                return;
+                this.Monitor.Log("Cannot add relationship: character names must not be null or empty.", LogLevel.Warn);
+                return false;
             }
 
-            if (this.Characters.ContainsKey(name))
+            if (string.Equals(characterA, characterB, StringComparison.OrdinalIgnoreCase))
             {
-                this.Monitor.Log($"Character '{name}' is already registered. Skipping duplicate registration.", LogLevel.Warn);
-                return;
+                this.Monitor.Log($"Cannot add relationship: '{characterA}' cannot have a relationship with itself.", LogLevel.Warn);
+                return false;
             }
 
-            var character = new CharacterInfo(name, isMale, type);
-            this.Characters[name] = character;
-            this.Monitor.Log($"Registered character '{name}' via API.", LogLevel.Trace);
+            if (!this.Characters.TryGetValue(characterA, out CharacterInfo charA))
+            {
+                this.Monitor.Log($"Cannot add relationship: character '{characterA}' is not registered.", LogLevel.Warn);
+                return false;
+            }
+
+            if (!this.Characters.TryGetValue(characterB, out CharacterInfo charB))
+            {
+                this.Monitor.Log($"Cannot add relationship: character '{characterB}' is not registered.", LogLevel.Warn);
+                return false;
+            }
+
+            bool addedA = charA.TryAddRelationship(relationshipA, charB);
+            bool addedB = charB.TryAddRelationship(relationshipB, charA);
+
+            if (!addedA && !addedB)
+            {
+                this.Monitor.Log($"Relationship already exists: {characterA} ({relationshipA}) <-> {characterB} ({relationshipB})", LogLevel.Debug);
+                return false;
+            }
+
+            this.Monitor.Log($"Added relationship: {characterA} ({relationshipA}) <-> {characterB} ({relationshipB})", LogLevel.Trace);
+            return true;
         }
 
         /// <summary>Add a relationship between two characters.</summary>
@@ -93,21 +154,16 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="relationshipB">Character B's relationship to character A.</param>
         public void AddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB)
         {
-            if (!this.Characters.TryGetValue(characterA, out CharacterInfo charA))
-            {
-                this.Monitor.Log($"Cannot add relationship: character '{characterA}' is not registered.", LogLevel.Warn);
-                return;
-            }
+            this.TryAddRelationship(characterA, relationshipA, characterB, relationshipB);
+        }
 
-            if (!this.Characters.TryGetValue(characterB, out CharacterInfo charB))
-            {
-                this.Monitor.Log($"Cannot add relationship: character '{characterB}' is not registered.", LogLevel.Warn);
-                return;
-            }
-
-            charA.AddRelationship(relationshipA, charB);
-            charB.AddRelationship(relationshipB, charA);
-            this.Monitor.Log($"Added relationship: {characterA} ({relationshipA}) <-> {characterB} ({relationshipB})", LogLevel.Trace);
+        /// <summary>Try to add a friendship between two characters (bidirectional).</summary>
+        /// <param name="characterA">The first character's name.</param>
+        /// <param name="characterB">The second character's name.</param>
+        /// <returns>Returns whether a new friendship was added.</returns>
+        public bool TryAddFriendship(string characterA, string characterB)
+        {
+            return this.TryAddRelationship(characterA, Relationship.Friend, characterB, Relationship.Friend);
         }
 
         /// <summary>Add a friendship between two characters (bidirectional).</summary>
@@ -115,7 +171,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="characterB">The second character's name.</param>
         public void AddFriendship(string characterA, string characterB)
         {
-            this.AddRelationship(characterA, Relationship.Friend, characterB, Relationship.Friend);
+            this.TryAddFriendship(characterA, characterB);
         }
 
         /// <summary>Get all registered characters.</summary>
@@ -130,7 +186,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <returns>True if the character is registered.</returns>
         public bool IsCharacterRegistered(string name)
         {
-            return this.Characters.ContainsKey(name);
+            return !string.IsNullOrWhiteSpace(name) && this.Characters.ContainsKey(name.Trim());
         }
 
         /// <summary>Get the internal characters dictionary (for use by ModEntry).</summary>
@@ -233,6 +289,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                         if (Enum.TryParse<Relationship>(relationshipStr, true, out Relationship relationship))
                         {
                             character.AddRelationship(relationship, otherCharacter);
+                            otherCharacter.AddRelationship(relationship.GetInverse(character.IsMale), character);
                         }
                         else
                         {
@@ -257,6 +314,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     if (this.TryResolveCharacter(pack, friendKey, out CharacterInfo friendCharacter))
                     {
                         character.AddRelationship(Relationship.Friend, friendCharacter);
+                        friendCharacter.AddRelationship(Relationship.Friend, character);
                     }
                     else
                     {

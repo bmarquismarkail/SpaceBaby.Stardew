@@ -47,12 +47,27 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
             this.Type = type;
         }
 
-        /// <summary>Add a relationship to another NPC.</summary>
+        /// <summary>Try to add a relationship to another character.</summary>
+        /// <param name="relationship">The target character's relationship to the original character (like 'Mother').</param>
+        /// <param name="character">The target character.</param>
+        /// <returns>Returns whether a new relationship entry was added.</returns>
+        public bool TryAddRelationship(Relationship relationship, CharacterInfo character)
+        {
+            ArgumentNullException.ThrowIfNull(character);
+
+            if (this.relationships.Any(p => p.Relationship == relationship && string.Equals(p.Character.Name, character.Name, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            this.relationships.Add(new CharacterRelationship(relationship, character));
+            return true;
+        }
+
+        /// <summary>Add a relationship to another character.</summary>
         /// <param name="relationship">The target character's relationship to the original character (like 'Mother').</param>
         /// <param name="character">The target character.</param>
         public void AddRelationship(Relationship relationship, CharacterInfo character)
         {
-            this.relationships.Add(new CharacterRelationship(relationship, character));
+            this.TryAddRelationship(relationship, character);
         }
 
         /// <summary>Get the in-game instance for this character.</summary>

@@ -8,5 +8,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../SV_PotC/PartOfTheCommunity.csproj" />
+    <Reference Include="StardewModdingAPI">
+      <HintPath>/home/brandon/.steam/debian-installation/steamapps/common/Stardew Valley/StardewModdingAPI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 </Project>

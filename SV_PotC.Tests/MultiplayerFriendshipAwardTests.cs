@@ -1,4 +1,7 @@
+using System.Reflection;
 using SpaceBaby.PartOfTheCommunity.Framework;
+using StardewModdingAPI;
+using StardewModdingAPI.Framework.Logging;
 
 namespace SV_PotC.Tests;
 
@@ -14,6 +17,8 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer), LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer);
         Run(nameof(RelationshipEnum_ContainsDocumentedApiMembers), RelationshipEnum_ContainsDocumentedApiMembers);
         Run(nameof(CharacterInfo_TracksRelationshipsThroughPublicApiModel), CharacterInfo_TracksRelationshipsThroughPublicApiModel);
+        Run(nameof(CharacterInfo_DoesNotDuplicateIdenticalRelationships), CharacterInfo_DoesNotDuplicateIdenticalRelationships);
+        Run(nameof(FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships), FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships);
     }
 
     private static void Run(string name, Action test)
@@ -166,6 +171,94 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.Equal(1, robin.Relationships.Count, "A registered API character should expose its relationship data.");
         Assert.Equal(Relationship.StepMother, robin.Relationships[0].Relationship, "The stored relationship should match the one added through the API model.");
         Assert.Equal("Sebastian", robin.Relationships[0].Character.Name, "The relationship target should preserve the other character's public name.");
+    }
+
+    private void CharacterInfo_DoesNotDuplicateIdenticalRelationships()
+    {
+        CharacterInfo robin = new("Robin", isMale: false);
+        CharacterInfo sebastian = new("Sebastian", isMale: true);
+
+        robin.AddRelationship(Relationship.StepMother, sebastian);
+        robin.AddRelationship(Relationship.StepMother, sebastian);
+
+        Assert.Equal(1, robin.Relationships.Count, "Adding the same relationship twice should not create duplicate entries.");
+    }
+
+    private void FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships()
+    {
+        Type managerType = typeof(PlayerData).Assembly.GetType("SpaceBaby.PartOfTheCommunity.Framework.CharacterManager")
+            ?? throw new InvalidOperationException("Could not locate CharacterManager for the flat-pack regression test.");
+
+        object manager = Activator.CreateInstance(
+            managerType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: new object?[] { null!, new TestMonitor() },
+            culture: null
+        ) ?? throw new InvalidOperationException("Could not create CharacterManager for the flat-pack regression test.");
+
+        MethodInfo loadFlatCharacterPack = managerType.GetMethod("LoadFlatCharacterPack", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Could not locate LoadFlatCharacterPack.");
+
+        CharacterPackFlat pack = new()
+        {
+            Characters = new Dictionary<string, CharacterEntry>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["robin"] = new CharacterEntry
+                {
+                    DisplayName = "Robin",
+                    Gender = "F",
+                    Relationships = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["sebastian"] = "son"
+                    },
+                    Friends = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["maru"] = true
+                    }
+                },
+                ["sebastian"] = new CharacterEntry
+                {
+                    DisplayName = "Sebastian",
+                    Gender = "M"
+                },
+                ["maru"] = new CharacterEntry
+                {
+                    DisplayName = "Maru",
+                    Gender = "F"
+                }
+            }
+        };
+
+        loadFlatCharacterPack.Invoke(manager, new object[] { pack, "test-pack.json" });
+
+        var characters = ((IPartOfTheCommunityApi)manager).GetAllCharacters();
+
+        Assert.True(characters["Robin"].Relationships.Any(p => p.Character.Name == "Sebastian" && p.Relationship == Relationship.Son), "Flat-pack relationships should preserve the declared relationship on the source character.");
+        Assert.True(characters["Sebastian"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Mother), "Flat-pack relationships should add the inferred inverse relationship on the target character.");
+        Assert.True(characters["Robin"].Relationships.Any(p => p.Character.Name == "Maru" && p.Relationship == Relationship.Friend), "Flat-pack friends should preserve the declared friendship on the source character.");
+        Assert.True(characters["Maru"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Friend), "Flat-pack friends should also add the inverse friendship on the target character.");
+    }
+
+    private sealed class TestMonitor : IMonitor
+    {
+        public bool IsVerbose => false;
+
+        public void Log(string message, LogLevel level = LogLevel.Trace)
+        {
+        }
+
+        public void LogOnce(string message, LogLevel level = LogLevel.Trace)
+        {
+        }
+
+        public void VerboseLog(string message)
+        {
+        }
+
+        public void VerboseLog(ref VerboseLogStringHandler message)
+        {
+        }
     }
 }
 

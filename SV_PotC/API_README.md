@@ -21,31 +21,16 @@ private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
 ```csharp
 public interface IPartOfTheCommunityApi
 {
-    /// <summary>Register a character that can have relationships with others.</summary>
-    /// <param name="name">The character's name.</param>
-    /// <param name="isMale">Whether the character is male.</param>
-    /// <param name="type">The character type (defaults to Villager).</param>
+    bool TryRegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager);
     void RegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager);
 
-    /// <summary>Add a relationship between two characters.</summary>
-    /// <param name="characterA">The first character's name.</param>
-    /// <param name="relationshipA">Character A's relationship to character B.</param>
-    /// <param name="characterB">The second character's name.</param>
-    /// <param name="relationshipB">Character B's relationship to character A.</param>
+    bool TryAddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB);
     void AddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB);
 
-    /// <summary>Add a friendship between two characters (bidirectional).</summary>
-    /// <param name="characterA">The first character's name.</param>
-    /// <param name="characterB">The second character's name.</param>
+    bool TryAddFriendship(string characterA, string characterB);
     void AddFriendship(string characterA, string characterB);
 
-    /// <summary>Get all registered characters.</summary>
-    /// <returns>A dictionary of character names to character info.</returns>
     IReadOnlyDictionary<string, CharacterInfo> GetAllCharacters();
-
-    /// <summary>Check if a character is registered.</summary>
-    /// <param name="name">The character's name.</param>
-    /// <returns>True if the character is registered.</returns>
     bool IsCharacterRegistered(string name);
 }
 ```
@@ -109,6 +94,14 @@ public class CharacterInfo
 
 `GetAllCharacters()` returns a read-only dictionary of character names to `CharacterInfo` objects using this shape.
 
+### Recommended calling pattern
+
+- Prefer the `TryRegisterCharacter`, `TryAddRelationship`, and `TryAddFriendship` methods if your mod wants an immediate success/failure result.
+- The older `RegisterCharacter`, `AddRelationship`, and `AddFriendship` methods are still available as convenience wrappers and will simply log/ignore invalid input.
+- Character names are matched case-insensitively, surrounding whitespace is trimmed, and duplicate registrations or duplicate relationship entries are ignored safely.
+- `Relationship.Friend` is a normal enum value. `TryAddFriendship(characterA, characterB)` is a convenience wrapper around `TryAddRelationship(characterA, Relationship.Friend, characterB, Relationship.Friend)`, so it creates the same bidirectional friend relationship and uses the same validations, duplicate checks, and logging behavior.
+- In practice, `TryAddRelationship(..., Relationship.Friend, ..., Relationship.Friend)` is equivalent to `TryAddFriendship(...)`. Prefer `TryAddFriendship` when you specifically mean friendship because it is clearer to readers; use `TryAddRelationship` when you want to work with the full enum-based relationship API more generally.
+
 ## Available Relationship Types
 
 The following relationship types are available:
@@ -163,14 +156,16 @@ public class MyMod : Mod
         }
 
         // Register custom characters
-        potcApi.RegisterCharacter("MyCustomNPC", isMale: true);
-        potcApi.RegisterCharacter("AnotherNPC", isMale: false);
+        if (!potcApi.TryRegisterCharacter("MyCustomNPC", isMale: true))
+            this.Monitor.Log("MyCustomNPC was already registered or invalid.", LogLevel.Debug);
+
+        potcApi.TryRegisterCharacter("AnotherNPC", isMale: false);
 
         // Add relationships
-        potcApi.AddRelationship("MyCustomNPC", Relationship.Brother, "AnotherNPC", Relationship.Sister);
-        
+        potcApi.TryAddRelationship("MyCustomNPC", Relationship.Brother, "AnotherNPC", Relationship.Sister);
+
         // Add friendships
-        potcApi.AddFriendship("MyCustomNPC", "Sam"); // Befriend an existing character
+        potcApi.TryAddFriendship("MyCustomNPC", "Sam"); // Befriend an existing character
     }
 }
 ```
@@ -215,12 +210,12 @@ You can create character packs using JSON files. Place them in the `Data` folder
 - **displayName**: The proper capitalized name shown in game.
 - **gender**: `"M"` for male, `"F"` for female.
 - **type**: Character type (`"Villager"`, `"Player"`, or `"Child"`).
-- **relationships**: Object where keys are other character keys or names and values are relationship types (lowercase). In the flat JSON format, these entries are loaded **exactly as written for that character only**; they are **not** automatically mirrored or gender-adjusted on the referenced character.
-- **friends**: Object where keys are other character keys or names and values are `true`. In the flat JSON format, setting `"other": true` adds a friend link from the current character to `other`, but does **not** automatically add the inverse friend entry on `other`.
+- **relationships**: Object where keys are other character keys or names and values are relationship types (lowercase). In the flat JSON format, PotC adds the declared relationship on the source character **and** automatically adds the inferred inverse relationship on the referenced character.
+- **friends**: Object where keys are other character keys or names and values are `true`. In the flat JSON format, setting `"other": true` adds a friend link from the current character to `other` and automatically adds the inverse friend entry on `other` too.
 
 > The flat JSON format shown above is the recommended format for new integrations. Legacy packs are still supported for backwards compatibility.
 >
-> **Reciprocal relationship note:** If `A` has `"relationships": { "b": "brother" }`, PotC will load that as **A -> B = brother** only. It will **not** infer `B -> A = sister` or `brother`. If you want both sides in flat JSON, define both entries explicitly (for example, `A -> B = sister` and `B -> A = brother`). The same rule applies to `friends`: define the inverse entry too if you want both characters to list each other as friends.
+> **Reciprocal relationship note:** If `A` has `"relationships": { "b": "brother" }`, PotC loads **A -> B = brother** and also infers the inverse on `B` using `A`'s gender (for example, `B -> A = sister` when `A` is female or `B -> A = brother` when `A` is male). For `friends`, `"other": true` automatically creates friendship entries on both characters. If you also define the inverse explicitly, PotC safely ignores the duplicate.
 
 ### Relationship Types (lowercase in JSON)
 
@@ -235,6 +230,6 @@ Use these lowercase strings in the JSON relationships:
 - Characters must be registered before adding relationships.
 - Character names are matched case-insensitively by the API.
 - Flat-pack relationship and friend keys can reference characters from the same pack, default PotC data, or previously registered characters by key or display name.
-- `AddRelationship` and `AddFriendship` are bidirectional API calls. The flat JSON `relationships` and `friends` objects are **not** auto-mirrored; define both sides explicitly if you want reciprocal data.
-- The mod will log warnings for invalid operations (missing characters, duplicate registrations, unknown relationship types, etc.).
+- `TryAddRelationship` and `TryAddFriendship` are bidirectional API calls that return `false` when the input is invalid or already present. The flat JSON `relationships` and `friends` objects are also mirrored automatically using the inferred inverse relationship.
+- The convenience `AddRelationship`, `AddFriendship`, and `RegisterCharacter` methods still log invalid operations for backwards compatibility.
 - Character registration should happen in the `GameLaunched` event to ensure proper initialization.
