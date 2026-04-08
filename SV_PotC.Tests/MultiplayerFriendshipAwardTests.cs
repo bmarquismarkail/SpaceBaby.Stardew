@@ -21,7 +21,9 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(RelationshipExtensions_IncludeMarriageDerivedInLaws), RelationshipExtensions_IncludeMarriageDerivedInLaws);
         Run(nameof(CharacterInfo_TracksRelationshipsThroughPublicApiModel), CharacterInfo_TracksRelationshipsThroughPublicApiModel);
         Run(nameof(CharacterInfo_DoesNotDuplicateIdenticalRelationships), CharacterInfo_DoesNotDuplicateIdenticalRelationships);
+        Run(nameof(CharacterInfo_RespectsUnlockConditions), CharacterInfo_RespectsUnlockConditions);
         Run(nameof(FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships), FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships);
+        Run(nameof(FlatCharacterPack_LoadsConditionalUnlockMetadata), FlatCharacterPack_LoadsConditionalUnlockMetadata);
         Run(nameof(CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax), CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax);
     }
 
@@ -210,21 +212,20 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.Equal(1, robin.Relationships.Count, "Adding the same relationship twice should not create duplicate entries.");
     }
 
+    private void CharacterInfo_RespectsUnlockConditions()
+    {
+        CharacterInfo leo = new("Leo", isMale: true, unlockCondition: "FALSE");
+        CharacterInfo linus = new("Linus", isMale: true);
+
+        leo.AddRelationship(Relationship.Friend, linus, unlockCondition: "FALSE");
+
+        Assert.False(leo.IsUnlocked(), "A FALSE game-state query should block PotC friendship bonuses for the character.");
+        Assert.False(leo.Relationships[0].IsUnlocked(), "A FALSE game-state query should also block the conditional relationship link.");
+    }
+
     private void FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships()
     {
-        Type managerType = typeof(PlayerData).Assembly.GetType("SpaceBaby.PartOfTheCommunity.Framework.CharacterManager")
-            ?? throw new InvalidOperationException("Could not locate CharacterManager for the flat-pack regression test.");
-
-        object manager = Activator.CreateInstance(
-            managerType,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            args: new object?[] { null!, new TestMonitor() },
-            culture: null
-        ) ?? throw new InvalidOperationException("Could not create CharacterManager for the flat-pack regression test.");
-
-        MethodInfo loadFlatCharacterPack = managerType.GetMethod("LoadFlatCharacterPack", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Could not locate LoadFlatCharacterPack.");
+        var (manager, loadFlatCharacterPack) = CreateCharacterManager();
 
         CharacterPackFlat pack = new()
         {
@@ -264,6 +265,66 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.True(characters["Sebastian"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Mother), "Flat-pack relationships should add the inferred inverse relationship on the target character.");
         Assert.True(characters["Robin"].Relationships.Any(p => p.Character.Name == "Maru" && p.Relationship == Relationship.Friend), "Flat-pack friends should preserve the declared friendship on the source character.");
         Assert.True(characters["Maru"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Friend), "Flat-pack friends should also add the inverse friendship on the target character.");
+    }
+
+    private void FlatCharacterPack_LoadsConditionalUnlockMetadata()
+    {
+        var (manager, loadFlatCharacterPack) = CreateCharacterManager();
+
+        CharacterPackFlat pack = new()
+        {
+            Characters = new Dictionary<string, CharacterEntry>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["leo"] = new CharacterEntry
+                {
+                    DisplayName = "Leo",
+                    Gender = "M",
+                    UnlockCondition = "PLAYER_HAS_MAIL Current leoMoved",
+                    Friends = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["linus"] = true
+                    },
+                    FriendConditions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["linus"] = "FALSE"
+                    }
+                },
+                ["linus"] = new CharacterEntry
+                {
+                    DisplayName = "Linus",
+                    Gender = "M"
+                }
+            }
+        };
+
+        loadFlatCharacterPack.Invoke(manager, new object[] { pack, "conditional-pack.json" });
+
+        var characters = ((IPartOfTheCommunityApi)manager).GetAllCharacters();
+        CharacterInfo leo = characters["Leo"];
+        CharacterInfo linus = characters["Linus"];
+
+        Assert.Equal("PLAYER_HAS_MAIL Current leoMoved", leo.UnlockCondition, "Flat-pack characters should preserve their unlock condition metadata.");
+        Assert.True(leo.Relationships.Any(p => p.Character.Name == "Linus" && p.Relationship == Relationship.Friend && p.UnlockCondition == "FALSE"), "Flat-pack friend conditions should be preserved on Leo's own relationship entry.");
+        Assert.True(linus.Relationships.Any(p => p.Character.Name == "Leo" && p.Relationship == Relationship.Friend && p.UnlockCondition == "FALSE"), "Flat-pack friend conditions should also be mirrored onto Linus's reciprocal friendship relationship metadata.");
+    }
+
+    private static (object Manager, MethodInfo LoadMethod) CreateCharacterManager()
+    {
+        Type managerType = typeof(PlayerData).Assembly.GetType("SpaceBaby.PartOfTheCommunity.Framework.CharacterManager")
+            ?? throw new InvalidOperationException("Could not locate CharacterManager for the flat-pack regression tests.");
+
+        object manager = Activator.CreateInstance(
+            managerType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: new object?[] { null!, new TestMonitor() },
+            culture: null
+        ) ?? throw new InvalidOperationException("Could not create CharacterManager for the flat-pack regression tests.");
+
+        MethodInfo loadFlatCharacterPack = managerType.GetMethod("LoadFlatCharacterPack", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Could not locate LoadFlatCharacterPack.");
+
+        return (manager, loadFlatCharacterPack);
     }
 
     private void CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax()

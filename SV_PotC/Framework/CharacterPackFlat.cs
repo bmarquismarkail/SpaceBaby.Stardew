@@ -24,12 +24,21 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <summary>The character type.</summary>
         public string Type { get; set; } = "Villager";
 
+        /// <summary>An optional Stardew 1.6 game-state query that gates PotC friendship bonuses for this character.</summary>
+        public string UnlockCondition { get; set; } = string.Empty;
+
         /// <summary>Relationships where key is the other character's lowercase name and value is this character's relationship to them.</summary>
         public Dictionary<string, string> Relationships { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Optional unlock conditions keyed by relationship target name.</summary>
+        public Dictionary<string, string> RelationshipConditions { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Friends where key is the other character's lowercase name and value is true.</summary>
         [JsonConverter(typeof(FriendDictionaryJsonConverter))]
         public Dictionary<string, bool> Friends { get; set; } = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Optional unlock conditions keyed by friend name.</summary>
+        public Dictionary<string, string> FriendConditions { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Supports both object and array syntax for the <c>friends</c> JSON field.</summary>

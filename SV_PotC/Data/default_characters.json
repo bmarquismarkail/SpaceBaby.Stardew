@@ -150,7 +150,11 @@
         "shane": "goddaughter"
       },
       "friends": {
+        "leo": true,
         "vincent": true
+      },
+      "friendConditions": {
+        "leo": "PLAYER_HAS_MAIL Current leoMoved"
       }
     },
     "jodi": {
@@ -197,6 +201,22 @@
         "elliott": true
       }
     },
+    "leo": {
+      "displayName": "Leo",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "jas": true,
+        "linus": true,
+        "vincent": true
+      },
+      "friendConditions": {
+        "jas": "PLAYER_HAS_MAIL Current leoMoved",
+        "linus": "PLAYER_HAS_MAIL Current leoMoved",
+        "vincent": "PLAYER_HAS_MAIL Current leoMoved"
+      }
+    },
     "lewis": {
       "displayName": "Lewis",
       "gender": "M",
@@ -212,7 +232,11 @@
       "type": "Villager",
       "relationships": {},
       "friends": {
+        "leo": true,
         "willy": true
+      },
+      "friendConditions": {
+        "leo": "PLAYER_HAS_MAIL Current leoMoved"
       }
     },
     "marnie": {
@@ -345,7 +369,11 @@
         "sam": "brother"
       },
       "friends": {
-        "jas": true
+        "jas": true,
+        "leo": true
+      },
+      "friendConditions": {
+        "leo": "PLAYER_HAS_MAIL Current leoMoved"
       }
     },
     "willy": {

@@ -14,5 +14,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
 
         /// <summary>Character B's relationship to character A.</summary>
         public Relationship RelationshipB { get; set; }
+
+        /// <summary>An optional Stardew 1.6 game-state query that gates this relationship bonus link.</summary>
+        public string UnlockCondition { get; set; } = string.Empty;
     }
 }

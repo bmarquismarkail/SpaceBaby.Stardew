@@ -23,12 +23,18 @@ public interface IPartOfTheCommunityApi
 {
     bool TryRegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager);
     void RegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager);
+    bool TryRegisterCharacter(string name, bool isMale, CharacterType type, string unlockCondition);
+    void RegisterCharacter(string name, bool isMale, CharacterType type, string unlockCondition);
 
     bool TryAddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB);
     void AddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB);
+    bool TryAddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB, string unlockCondition);
+    void AddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB, string unlockCondition);
 
     bool TryAddFriendship(string characterA, string characterB);
     void AddFriendship(string characterA, string characterB);
+    bool TryAddFriendship(string characterA, string characterB, string unlockCondition);
+    void AddFriendship(string characterA, string characterB, string unlockCondition);
 
     IReadOnlyDictionary<string, CharacterInfo> GetAllCharacters();
     bool IsCharacterRegistered(string name);
@@ -95,6 +101,7 @@ public class CharacterInfo
     public string Name { get; }
     public bool IsMale { get; }
     public CharacterType Type { get; }
+    public string UnlockCondition { get; }
 }
 ```
 
@@ -107,6 +114,7 @@ public class CharacterInfo
 - Character names are matched case-insensitively, surrounding whitespace is trimmed, and duplicate registrations or duplicate relationship entries are ignored safely.
 - `Relationship.Friend` is a normal enum value. `TryAddFriendship(characterA, characterB)` is a convenience wrapper around `TryAddRelationship(characterA, Relationship.Friend, characterB, Relationship.Friend)`, so it creates the same bidirectional friend relationship and uses the same validations, duplicate checks, and logging behavior.
 - In practice, `TryAddRelationship(..., Relationship.Friend, ..., Relationship.Friend)` is equivalent to `TryAddFriendship(...)`. Prefer `TryAddFriendship` when you specifically mean friendship because it is clearer to readers; use `TryAddRelationship` when you want to work with the full enum-based relationship API more generally.
+- If a character, relationship, or friendship should only start granting **PotC bonus friendship** after some point in the story, use the overloads that accept an `unlockCondition` string. This string is a Stardew 1.6 **Game State Query** such as `PLAYER_HAS_MAIL Current leoMoved`, `PLAYER_HAS_SEEN_EVENT Current 6497421`, or `YEAR 2`.
 
 ## Available Relationship Types
 
@@ -175,6 +183,9 @@ public class MyMod : Mod
 
         // Add friendships
         potcApi.TryAddFriendship("MyCustomNPC", "Sam"); // Befriend an existing character
+
+        // Gate friendship bonuses until a late-game event/mail flag.
+        potcApi.TryAddFriendship("Leo", "Linus", "PLAYER_HAS_MAIL Current leoMoved");
     }
 }
 ```
@@ -190,11 +201,18 @@ You can create character packs using JSON files. Place them in the `Data` folder
       "displayName": "MyCharacter",
       "gender": "M",
       "type": "Villager",
+      "unlockCondition": "YEAR 2",
       "relationships": {
         "sam": "brother"
       },
+      "relationshipConditions": {
+        "sam": "PLAYER_HAS_MET Current Sam"
+      },
       "friends": {
         "sebastian": true
+      },
+      "friendConditions": {
+        "sebastian": "PLAYER_HAS_SEEN_EVENT Current 123456"
       }
     },
     "anothercharacter": {
@@ -219,8 +237,11 @@ You can create character packs using JSON files. Place them in the `Data` folder
 - **displayName**: The proper capitalized name shown in game.
 - **gender**: `"M"` for male, `"F"` for female.
 - **type**: Character type (`"Villager"`, `"Player"`, or `"Child"`).
+- **unlockCondition** *(optional)*: A Stardew 1.6 Game State Query that must match before this character can receive PotC friendship bonuses at all.
 - **relationships**: Object where keys are other character keys or names and values are relationship types (lowercase). In the flat JSON format, PotC adds the declared relationship on the source character **and** automatically adds the inferred inverse relationship on the referenced character.
+- **relationshipConditions** *(optional)*: Object keyed by relationship target name. Each value is a Stardew 1.6 Game State Query that gates that specific relationship bonus link.
 - **friends**: By default, this is an object where keys are other character keys or names and values are `true`. For convenience, PotC also accepts a simple array of names like `"friends": ["sam", "sebastian"]`. The original object form remains the canonical documented format and is still fully supported. In the flat JSON format, setting `"other": true` or listing `"other"` in the array adds a friend link from the current character to `other` and automatically adds the inverse friend entry on `other` too.
+- **friendConditions** *(optional)*: Object keyed by friend name. Each value is a Stardew 1.6 Game State Query that gates that specific friendship bonus link.
 
 > The flat JSON format shown above is the recommended format for new integrations. Legacy packs are still supported for backwards compatibility.
 >
@@ -238,6 +259,31 @@ You can create character packs using JSON files. Place them in the `Data` folder
 > ```
 >
 > This stores **Alice -> Bob = brother** and **Bob -> Alice = sister** because Alice (the source character) is female. If Alice's gender were `"M"`, the inverse would be **Bob -> Alice = brother** instead. For friends, either `"other": true` or the array shorthand like `"friends": ["carol"]` creates mutual `Friend` entries on both characters automatically. If you also define the inverse explicitly, PotC safely ignores the duplicate.
+
+### Late-game lockout example
+
+If you want Leo's PotC friendship bonuses with `jas`, `vincent`, and `linus` to stay inactive until the vanilla move-to-town progression happens, you can write:
+
+```json
+"leo": {
+  "displayName": "Leo",
+  "gender": "M",
+  "type": "Villager",
+  "relationships": {},
+  "friends": {
+    "jas": true,
+    "linus": true,
+    "vincent": true
+  },
+  "friendConditions": {
+    "jas": "PLAYER_HAS_MAIL Current leoMoved",
+    "linus": "PLAYER_HAS_MAIL Current leoMoved",
+    "vincent": "PLAYER_HAS_MAIL Current leoMoved"
+  }
+}
+```
+
+This keeps the links in your data, but PotC won't award the indirect friendship bonus from those links until `leoMoved` is true for the evaluated player.
 
 ### Relationship Types (lowercase in JSON)
 

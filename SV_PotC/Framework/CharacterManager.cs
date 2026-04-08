@@ -35,6 +35,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         {
             this.Helper = helper;
             this.Monitor = monitor;
+            UnlockConditionHelper.Monitor = monitor;
         }
 
         /// <summary>Load all characters from data files and initialize the system.</summary>
@@ -67,10 +68,22 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="name">The character's name.</param>
         /// <param name="isMale">Whether the character is male.</param>
         /// <param name="type">The character type (defaults to Villager).</param>
-        /// <returns>Returns whether the character was registered.</returns>
+        /// <returns>Returns whether the character was newly registered or an existing character's unlock condition was updated.</returns>
         public bool TryRegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager)
         {
+            return this.TryRegisterCharacter(name, isMale, type, unlockCondition: null);
+        }
+
+        /// <summary>Try to register a character that can have relationships with others, with a Stardew 1.6 game-state query that can gate PotC friendship bonuses for that character.</summary>
+        /// <param name="name">The character's name.</param>
+        /// <param name="isMale">Whether the character is male.</param>
+        /// <param name="type">The character type.</param>
+        /// <param name="unlockCondition">A Stardew 1.6 game-state query string that must match before PotC can award this character friendship points, or <c>null</c>/<c>empty</c> to leave it always available.</param>
+        /// <returns>Returns whether the character was newly registered or an existing character's unlock condition was updated.</returns>
+        public bool TryRegisterCharacter(string name, bool isMale, CharacterType type, string unlockCondition = null)
+        {
             name = name?.Trim();
+            unlockCondition = unlockCondition?.Trim();
 
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -78,13 +91,20 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                 return false;
             }
 
-            if (this.Characters.ContainsKey(name))
+            if (this.Characters.TryGetValue(name, out CharacterInfo existingCharacter))
             {
+                if (string.IsNullOrWhiteSpace(existingCharacter.UnlockCondition) && !string.IsNullOrWhiteSpace(unlockCondition))
+                {
+                    existingCharacter.UnlockCondition = unlockCondition;
+                    this.Monitor.Log($"Updated unlock condition for already-registered character '{name}'.", LogLevel.Trace);
+                    return true;
+                }
+
                 this.Monitor.Log($"Character '{name}' is already registered. Skipping duplicate registration.", LogLevel.Debug);
                 return false;
             }
 
-            var character = new CharacterInfo(name, isMale, type);
+            var character = new CharacterInfo(name, isMale, type, unlockCondition);
             this.Characters[name] = character;
             this.Monitor.Log($"Registered character '{name}' via API.", LogLevel.Trace);
             return true;
@@ -96,7 +116,17 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="type">The character type (defaults to Villager).</param>
         public void RegisterCharacter(string name, bool isMale, CharacterType type = CharacterType.Villager)
         {
-            this.TryRegisterCharacter(name, isMale, type);
+            this.TryRegisterCharacter(name, isMale, type, unlockCondition: null);
+        }
+
+        /// <summary>Register a character that can have relationships with others, with a Stardew 1.6 game-state query that can gate PotC friendship bonuses for that character.</summary>
+        /// <param name="name">The character's name.</param>
+        /// <param name="isMale">Whether the character is male.</param>
+        /// <param name="type">The character type.</param>
+        /// <param name="unlockCondition">A Stardew 1.6 game-state query string that must match before PotC can award this character friendship points, or <c>null</c>/<c>empty</c> to leave it always available.</param>
+        public void RegisterCharacter(string name, bool isMale, CharacterType type, string unlockCondition = null)
+        {
+            this.TryRegisterCharacter(name, isMale, type, unlockCondition);
         }
 
         /// <summary>Try to add a relationship between two characters.</summary>
@@ -107,8 +137,21 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <returns>Returns whether a new relationship was added.</returns>
         public bool TryAddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB)
         {
+            return this.TryAddRelationship(characterA, relationshipA, characterB, relationshipB, unlockCondition: null);
+        }
+
+        /// <summary>Try to add a relationship between two characters with a Stardew 1.6 game-state query that can gate when it awards PotC friendship bonuses.</summary>
+        /// <param name="characterA">The first character's name.</param>
+        /// <param name="relationshipA">Character A's relationship to character B.</param>
+        /// <param name="characterB">The second character's name.</param>
+        /// <param name="relationshipB">Character B's relationship to character A.</param>
+        /// <param name="unlockCondition">A Stardew 1.6 game-state query string that must match before this relationship can award PotC friendship bonuses, or <c>null</c>/<c>empty</c> to leave it always available.</param>
+        /// <returns>Returns whether a new relationship was added.</returns>
+        public bool TryAddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB, string unlockCondition = null)
+        {
             characterA = characterA?.Trim();
             characterB = characterB?.Trim();
+            unlockCondition = unlockCondition?.Trim();
 
             if (string.IsNullOrWhiteSpace(characterA) || string.IsNullOrWhiteSpace(characterB))
             {
@@ -134,8 +177,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                 return false;
             }
 
-            bool addedA = charA.TryAddRelationship(relationshipA, charB);
-            bool addedB = charB.TryAddRelationship(relationshipB, charA);
+            bool addedA = charA.TryAddRelationship(relationshipA, charB, unlockCondition);
+            bool addedB = charB.TryAddRelationship(relationshipB, charA, unlockCondition);
 
             if (!addedA && !addedB)
             {
@@ -154,7 +197,18 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="relationshipB">Character B's relationship to character A.</param>
         public void AddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB)
         {
-            this.TryAddRelationship(characterA, relationshipA, characterB, relationshipB);
+            this.TryAddRelationship(characterA, relationshipA, characterB, relationshipB, unlockCondition: null);
+        }
+
+        /// <summary>Add a relationship between two characters with a Stardew 1.6 game-state query that can gate when it awards PotC friendship bonuses.</summary>
+        /// <param name="characterA">The first character's name.</param>
+        /// <param name="relationshipA">Character A's relationship to character B.</param>
+        /// <param name="characterB">The second character's name.</param>
+        /// <param name="relationshipB">Character B's relationship to character A.</param>
+        /// <param name="unlockCondition">A Stardew 1.6 game-state query string that must match before this relationship can award PotC friendship bonuses, or <c>null</c>/<c>empty</c> to leave it always available.</param>
+        public void AddRelationship(string characterA, Relationship relationshipA, string characterB, Relationship relationshipB, string unlockCondition = null)
+        {
+            this.TryAddRelationship(characterA, relationshipA, characterB, relationshipB, unlockCondition);
         }
 
         /// <summary>Try to add a friendship between two characters (bidirectional).</summary>
@@ -163,7 +217,17 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <returns>Returns whether a new friendship was added.</returns>
         public bool TryAddFriendship(string characterA, string characterB)
         {
-            return this.TryAddRelationship(characterA, Relationship.Friend, characterB, Relationship.Friend);
+            return this.TryAddFriendship(characterA, characterB, unlockCondition: null);
+        }
+
+        /// <summary>Try to add a friendship between two characters (bidirectional).</summary>
+        /// <param name="characterA">The first character's name.</param>
+        /// <param name="characterB">The second character's name.</param>
+        /// <param name="unlockCondition">An optional Stardew 1.6 game-state query that must match before this friendship can award PotC friendship bonuses.</param>
+        /// <returns>Returns whether a new friendship was added.</returns>
+        public bool TryAddFriendship(string characterA, string characterB, string unlockCondition)
+        {
+            return this.TryAddRelationship(characterA, Relationship.Friend, characterB, Relationship.Friend, unlockCondition);
         }
 
         /// <summary>Add a friendship between two characters (bidirectional).</summary>
@@ -171,7 +235,16 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="characterB">The second character's name.</param>
         public void AddFriendship(string characterA, string characterB)
         {
-            this.TryAddFriendship(characterA, characterB);
+            this.TryAddFriendship(characterA, characterB, unlockCondition: null);
+        }
+
+        /// <summary>Add a friendship between two characters (bidirectional), with an optional unlock condition.</summary>
+        /// <param name="characterA">The first character's name.</param>
+        /// <param name="characterB">The second character's name.</param>
+        /// <param name="unlockCondition">An optional Stardew 1.6 game-state query that must match before this friendship can award PotC friendship bonuses.</param>
+        public void AddFriendship(string characterA, string characterB, string unlockCondition)
+        {
+            this.TryAddFriendship(characterA, characterB, unlockCondition);
         }
 
         /// <summary>Get all registered characters.</summary>
@@ -264,8 +337,14 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     bool isMale = string.Equals(entry.Gender, "M", StringComparison.OrdinalIgnoreCase);
                     CharacterType type = Enum.TryParse<CharacterType>(entry.Type, out var parsedType) ? parsedType : CharacterType.Villager;
 
-                    var character = new CharacterInfo(entry.DisplayName, isMale, type);
+                    var character = new CharacterInfo(entry.DisplayName, isMale, type, entry.UnlockCondition);
                     this.Characters[entry.DisplayName] = character;
+                }
+                else
+                {
+                    CharacterInfo existingCharacter = this.Characters[entry.DisplayName];
+                    if (string.IsNullOrWhiteSpace(existingCharacter.UnlockCondition) && !string.IsNullOrWhiteSpace(entry.UnlockCondition))
+                        existingCharacter.UnlockCondition = entry.UnlockCondition.Trim();
                 }
             }
 
@@ -288,8 +367,10 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     {
                         if (Enum.TryParse<Relationship>(relationshipStr, true, out Relationship relationship))
                         {
-                            character.AddRelationship(relationship, otherCharacter);
-                            otherCharacter.AddRelationship(relationship.GetInverse(character.IsMale), character);
+                            string unlockCondition = null;
+                            entry.RelationshipConditions?.TryGetValue(otherCharKey, out unlockCondition);
+                            character.AddRelationship(relationship, otherCharacter, unlockCondition);
+                            otherCharacter.AddRelationship(relationship.GetInverse(character.IsMale), character, unlockCondition);
                         }
                         else
                         {
@@ -313,8 +394,10 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
 
                     if (this.TryResolveCharacter(pack, friendKey, out CharacterInfo friendCharacter))
                     {
-                        character.AddRelationship(Relationship.Friend, friendCharacter);
-                        friendCharacter.AddRelationship(Relationship.Friend, character);
+                        string unlockCondition = null;
+                        entry.FriendConditions?.TryGetValue(friendKey, out unlockCondition);
+                        character.AddRelationship(Relationship.Friend, friendCharacter, unlockCondition);
+                        friendCharacter.AddRelationship(Relationship.Friend, character, unlockCondition);
                     }
                     else
                     {
@@ -368,9 +451,14 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     continue;
                 }
 
-                if (!this.Characters.ContainsKey(charData.Name))
+                if (this.Characters.TryGetValue(charData.Name, out CharacterInfo existingCharacter))
                 {
-                    var character = new CharacterInfo(charData.Name, charData.IsMale, charData.Type);
+                    if (string.IsNullOrWhiteSpace(existingCharacter.UnlockCondition) && !string.IsNullOrWhiteSpace(charData.UnlockCondition))
+                        existingCharacter.UnlockCondition = charData.UnlockCondition.Trim();
+                }
+                else
+                {
+                    var character = new CharacterInfo(charData.Name, charData.IsMale, charData.Type, charData.UnlockCondition);
                     this.Characters[charData.Name] = character;
                 }
             }
@@ -381,8 +469,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                 if (this.Characters.TryGetValue(relData.CharacterA, out CharacterInfo charA) &&
                     this.Characters.TryGetValue(relData.CharacterB, out CharacterInfo charB))
                 {
-                    charA.AddRelationship(relData.RelationshipA, charB);
-                    charB.AddRelationship(relData.RelationshipB, charA);
+                    charA.AddRelationship(relData.RelationshipA, charB, relData.UnlockCondition);
+                    charB.AddRelationship(relData.RelationshipB, charA, relData.UnlockCondition);
                 }
                 else
                 {
@@ -396,8 +484,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                 if (this.Characters.TryGetValue(friendData.CharacterA, out CharacterInfo charA) &&
                     this.Characters.TryGetValue(friendData.CharacterB, out CharacterInfo charB))
                 {
-                    charA.AddRelationship(Relationship.Friend, charB);
-                    charB.AddRelationship(Relationship.Friend, charA);
+                    charA.AddRelationship(Relationship.Friend, charB, friendData.UnlockCondition);
+                    charB.AddRelationship(Relationship.Friend, charA, friendData.UnlockCondition);
                 }
                 else
                 {

@@ -441,7 +441,7 @@ namespace SpaceBaby.PartOfTheCommunity
                 {
                     if (this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse) && spouse != null)
                     {
-                        foreach (CharacterRelationship relation in spouse.Relationships)
+                        foreach (CharacterRelationship relation in spouse.Relationships.Where(p => p.IsUnlocked(farmer)))
                         {
                             if (!relation.Character.TryGetNpc(out NPC relationNpc))
                                 continue;
@@ -488,11 +488,12 @@ namespace SpaceBaby.PartOfTheCommunity
                 var session = PlayerSession.GetSession(farmer);
                 foreach (CharacterInfo character in this.Characters.Values)
                 {
-                    if (!character.TryGetNpc(out NPC npc))
+                    if (!character.IsUnlocked(farmer) || !character.TryGetNpc(out NPC npc))
                         continue;
 
                     // Check if this farmer gave gifts to this character's relationships
                     int relationsGifted = character.Relationships.Count(p => 
+                        p.IsUnlocked(farmer) &&
                         farmer.friendshipData.ContainsKey(p.Character.Name) && 
                         farmer.friendshipData[p.Character.Name].GiftsToday > 0);
                     
@@ -509,7 +510,7 @@ namespace SpaceBaby.PartOfTheCommunity
                     bool giftedFamily = false;
                     foreach (CharacterRelationship relation in player.Relationships)
                     {
-                        if (relation.IsFamily && farmer.friendshipData.ContainsKey(relation.Character.Name) && farmer.friendshipData[relation.Character.Name].GiftsToday > 0)
+                        if (relation.IsFamily && relation.IsUnlocked(farmer) && farmer.friendshipData.ContainsKey(relation.Character.Name) && farmer.friendshipData[relation.Character.Name].GiftsToday > 0)
                         {
                             giftedFamily = true;
                             break;
@@ -520,7 +521,7 @@ namespace SpaceBaby.PartOfTheCommunity
                     {
                         foreach (CharacterRelationship relation in spouse.Relationships)
                         {
-                            if (relation.Character.TryGetNpc(out NPC relationNpc) && relation.IsFamily)
+                            if (relation.IsFamily && relation.IsUnlocked(farmer) && relation.Character.TryGetNpc(out NPC relationNpc))
                             {
                                 this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonus);
                                 this.Monitor.Log($"{farmer.Name}: {relation}'s Friendship raised {this.Config.UmojaBonus} for loving your family.", LogLevel.Info);
@@ -693,8 +694,13 @@ namespace SpaceBaby.PartOfTheCommunity
         /// <param name="points">The number of points to add.</param>
         private void AddFriendshipPoints(Farmer farmer, NPC npc, int points)
         {
-            if (npc != null && farmer != null) // e.g. Kent might not have arrived yet
-                farmer.changeFriendship(points, npc);
+            if (npc == null || farmer == null) // e.g. Kent might not have arrived yet
+                return;
+
+            if (this.Characters != null && this.Characters.TryGetValue(npc.Name, out CharacterInfo character) && !character.IsUnlocked(farmer, npc.currentLocation))
+                return;
+
+            farmer.changeFriendship(points, npc);
         }
 
         private static int GetCurrentDayKey()

@@ -11,5 +11,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
 
         /// <summary>The character type.</summary>
         public CharacterType Type { get; set; } = CharacterType.Villager;
+
+        /// <summary>An optional Stardew 1.6 game-state query that gates PotC friendship bonuses for this character.</summary>
+        public string UnlockCondition { get; set; } = string.Empty;
     }
 }
