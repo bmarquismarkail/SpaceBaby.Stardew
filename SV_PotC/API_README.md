@@ -71,6 +71,12 @@ public enum Relationship
     GreatGrandmother,
     Husband,
     Wife,
+    FatherInLaw,
+    MotherInLaw,
+    BrotherInLaw,
+    SisterInLaw,
+    SonInLaw,
+    DaughterInLaw,
     Aunt,
     Uncle,
     Niece,
@@ -119,6 +125,9 @@ The following relationship types are available:
 - Grandson/Granddaughter
 - GreatGrandson/GreatGranddaughter
 - Husband/Wife
+- FatherInLaw/MotherInLaw
+- BrotherInLaw/SisterInLaw
+- SonInLaw/DaughterInLaw
 - Uncle/Aunt
 - Nephew/Niece
 - Cousin
@@ -211,17 +220,30 @@ You can create character packs using JSON files. Place them in the `Data` folder
 - **gender**: `"M"` for male, `"F"` for female.
 - **type**: Character type (`"Villager"`, `"Player"`, or `"Child"`).
 - **relationships**: Object where keys are other character keys or names and values are relationship types (lowercase). In the flat JSON format, PotC adds the declared relationship on the source character **and** automatically adds the inferred inverse relationship on the referenced character.
-- **friends**: Object where keys are other character keys or names and values are `true`. In the flat JSON format, setting `"other": true` adds a friend link from the current character to `other` and automatically adds the inverse friend entry on `other` too.
+- **friends**: By default, this is an object where keys are other character keys or names and values are `true`. For convenience, PotC also accepts a simple array of names like `"friends": ["sam", "sebastian"]`. The original object form remains the canonical documented format and is still fully supported. In the flat JSON format, setting `"other": true` or listing `"other"` in the array adds a friend link from the current character to `other` and automatically adds the inverse friend entry on `other` too.
 
 > The flat JSON format shown above is the recommended format for new integrations. Legacy packs are still supported for backwards compatibility.
 >
-> **Reciprocal relationship note:** If `A` has `"relationships": { "b": "brother" }`, PotC loads **A -> B = brother** and also infers the inverse on `B` using `A`'s gender (for example, `B -> A = sister` when `A` is female or `B -> A = brother` when `A` is male). For `friends`, `"other": true` automatically creates friendship entries on both characters. If you also define the inverse explicitly, PotC safely ignores the duplicate.
+> **Reciprocal relationship note:** PotC uses the **source character's gender** to infer the inverse relationship. For example:
+>
+> ```json
+> "alice": {
+>   "displayName": "Alice",
+>   "gender": "F",
+>   "relationships": {
+>     "bob": "brother"
+>   },
+>   "friends": ["carol"]
+> }
+> ```
+>
+> This stores **Alice -> Bob = brother** and **Bob -> Alice = sister** because Alice (the source character) is female. If Alice's gender were `"M"`, the inverse would be **Bob -> Alice = brother** instead. For friends, either `"other": true` or the array shorthand like `"friends": ["carol"]` creates mutual `Friend` entries on both characters automatically. If you also define the inverse explicitly, PotC safely ignores the duplicate.
 
 ### Relationship Types (lowercase in JSON)
 
 Use these lowercase strings in the JSON relationships:
 
-- **Family**: `brother`, `sister`, `halfbrother`, `halfsister`, `son`, `daughter`, `stepson`, `stepdaughter`, `father`, `mother`, `stepfather`, `stepmother`, `grandfather`, `grandmother`, `greatgrandfather`, `greatgrandmother`, `grandson`, `granddaughter`, `greatgrandson`, `greatgranddaughter`, `husband`, `wife`, `uncle`, `aunt`, `nephew`, `niece`, `cousin`
+- **Family**: `brother`, `sister`, `halfbrother`, `halfsister`, `son`, `daughter`, `stepson`, `stepdaughter`, `father`, `mother`, `stepfather`, `stepmother`, `grandfather`, `grandmother`, `greatgrandfather`, `greatgrandmother`, `grandson`, `granddaughter`, `greatgrandson`, `greatgranddaughter`, `husband`, `wife`, `fatherinlaw`, `motherinlaw`, `brotherinlaw`, `sisterinlaw`, `soninlaw`, `daughterinlaw`, `uncle`, `aunt`, `nephew`, `niece`, `cousin`
 
 - **Other**: `friend`, `godfather`, `godmother`, `godson`, `goddaughter`, `wartorn`
 
@@ -231,5 +253,6 @@ Use these lowercase strings in the JSON relationships:
 - Character names are matched case-insensitively by the API.
 - Flat-pack relationship and friend keys can reference characters from the same pack, default PotC data, or previously registered characters by key or display name.
 - `TryAddRelationship` and `TryAddFriendship` are bidirectional API calls that return `false` when the input is invalid or already present. The flat JSON `relationships` and `friends` objects are also mirrored automatically using the inferred inverse relationship.
+- When the player marries a character, PotC also derives spouse, in-law, and step-family relationships at runtime from that spouse's known family data.
 - The convenience `AddRelationship`, `AddFriendship`, and `RegisterCharacter` methods still log invalid operations for backwards compatibility.
 - Character registration should happen in the `GameLaunched` event to ensure proper initialization.

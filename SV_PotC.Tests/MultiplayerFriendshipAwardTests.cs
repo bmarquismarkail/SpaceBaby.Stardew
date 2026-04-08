@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Linq;
+using Newtonsoft.Json;
 using SpaceBaby.PartOfTheCommunity.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Framework.Logging;
@@ -16,9 +18,11 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(DailyQuestBonus_IsBoundToTheFarmerWhoCompletedTheQuest), DailyQuestBonus_IsBoundToTheFarmerWhoCompletedTheQuest);
         Run(nameof(LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer), LegacyFlagMap_ConvertsToPlayerDataForCurrentPlayer);
         Run(nameof(RelationshipEnum_ContainsDocumentedApiMembers), RelationshipEnum_ContainsDocumentedApiMembers);
+        Run(nameof(RelationshipExtensions_IncludeMarriageDerivedInLaws), RelationshipExtensions_IncludeMarriageDerivedInLaws);
         Run(nameof(CharacterInfo_TracksRelationshipsThroughPublicApiModel), CharacterInfo_TracksRelationshipsThroughPublicApiModel);
         Run(nameof(CharacterInfo_DoesNotDuplicateIdenticalRelationships), CharacterInfo_DoesNotDuplicateIdenticalRelationships);
         Run(nameof(FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships), FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships);
+        Run(nameof(CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax), CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax);
     }
 
     private static void Run(string name, Action test)
@@ -159,6 +163,28 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.StepDaughter)), "The API should expose the documented StepDaughter relationship.");
         Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.Godmother)), "The API should expose the documented Godmother relationship.");
         Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.Godson)), "The API should expose the documented Godson relationship.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.FatherInLaw)), "The API should expose a FatherInLaw relationship for marriage-derived family links.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.MotherInLaw)), "The API should expose a MotherInLaw relationship for marriage-derived family links.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.BrotherInLaw)), "The API should expose a BrotherInLaw relationship for marriage-derived family links.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.SisterInLaw)), "The API should expose a SisterInLaw relationship for marriage-derived family links.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.SonInLaw)), "The API should expose a SonInLaw relationship for marriage-derived family links.");
+        Assert.True(Enum.IsDefined(typeof(Relationship), nameof(Relationship.DaughterInLaw)), "The API should expose a DaughterInLaw relationship for marriage-derived family links.");
+    }
+
+    private void RelationshipExtensions_IncludeMarriageDerivedInLaws()
+    {
+        Assert.Equal(Relationship.SonInLaw, Relationship.FatherInLaw.GetInverse(sourceIsMale: true), "A male source should invert FatherInLaw into SonInLaw.");
+        Assert.Equal(Relationship.DaughterInLaw, Relationship.FatherInLaw.GetInverse(sourceIsMale: false), "A female source should invert FatherInLaw into DaughterInLaw.");
+        Assert.Equal(Relationship.BrotherInLaw, Relationship.BrotherInLaw.GetInverse(sourceIsMale: true), "A male source should remain a BrotherInLaw from the counterpart's perspective.");
+        Assert.Equal(Relationship.SisterInLaw, Relationship.BrotherInLaw.GetInverse(sourceIsMale: false), "A female source should invert BrotherInLaw into SisterInLaw.");
+
+        Assert.True(Relationship.Father.TryGetMarriageDerivedRelationship(playerIsMale: false, out Relationship playerToRelative, out Relationship relativeToPlayer), "A spouse's parent should produce in-law relationships when married.");
+        Assert.Equal(Relationship.FatherInLaw, playerToRelative, "A spouse's father should become a father-in-law to the player.");
+        Assert.Equal(Relationship.DaughterInLaw, relativeToPlayer, "The spouse's father should see a female player as a daughter-in-law.");
+
+        Assert.True(Relationship.HalfBrother.TryGetMarriageDerivedRelationship(playerIsMale: false, out playerToRelative, out relativeToPlayer), "A spouse's sibling should produce sibling-in-law relationships when married.");
+        Assert.Equal(Relationship.BrotherInLaw, playerToRelative, "A male spouse sibling should become a brother-in-law to the player.");
+        Assert.Equal(Relationship.SisterInLaw, relativeToPlayer, "A male spouse sibling should see a female player as a sister-in-law.");
     }
 
     private void CharacterInfo_TracksRelationshipsThroughPublicApiModel()
@@ -238,6 +264,45 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.True(characters["Sebastian"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Mother), "Flat-pack relationships should add the inferred inverse relationship on the target character.");
         Assert.True(characters["Robin"].Relationships.Any(p => p.Character.Name == "Maru" && p.Relationship == Relationship.Friend), "Flat-pack friends should preserve the declared friendship on the source character.");
         Assert.True(characters["Maru"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Friend), "Flat-pack friends should also add the inverse friendship on the target character.");
+    }
+
+    private void CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax()
+    {
+        const string objectJson = """
+        {
+          "characters": {
+            "example": {
+              "displayName": "Example",
+              "gender": "F",
+              "friends": {
+                "sam": true,
+                "sebastian": true
+              }
+            }
+          }
+        }
+        """;
+
+        const string arrayJson = """
+        {
+          "characters": {
+            "example": {
+              "displayName": "Example",
+              "gender": "F",
+              "friends": ["sam", "sebastian"]
+            }
+          }
+        }
+        """;
+
+        CharacterPackFlat objectPack = JsonConvert.DeserializeObject<CharacterPackFlat>(objectJson)
+            ?? throw new InvalidOperationException("Object-style friend JSON should deserialize.");
+        CharacterPackFlat arrayPack = JsonConvert.DeserializeObject<CharacterPackFlat>(arrayJson)
+            ?? throw new InvalidOperationException("Array-style friend JSON should deserialize.");
+
+        Assert.True(objectPack.Characters["example"].Friends.ContainsKey("sam"), "The original object syntax should keep working for friend entries.");
+        Assert.True(arrayPack.Characters["example"].Friends.ContainsKey("sam"), "The new array syntax should deserialize friend names into the same dictionary.");
+        Assert.True(arrayPack.Characters["example"].Friends["sebastian"], "Array-style friend entries should map to a true flag internally.");
     }
 
     private sealed class TestMonitor : IMonitor

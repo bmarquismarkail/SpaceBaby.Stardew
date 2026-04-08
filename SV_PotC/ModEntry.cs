@@ -597,6 +597,14 @@ namespace SpaceBaby.PartOfTheCommunity
                     spouse = new CharacterInfo(Game1.player.spouse, isMale: Utility.isMale(Game1.player.spouse));
                     characters[spouse.Name] = spouse;
                 }
+
+                this.AddRelationship(player, player.IsMale ? Relationship.Husband : Relationship.Wife, spouse, spouse.IsMale ? Relationship.Husband : Relationship.Wife);
+
+                foreach (CharacterRelationship spouseRelation in spouse.Relationships.ToList())
+                {
+                    if (spouseRelation.Relationship.TryGetMarriageDerivedRelationship(player.IsMale, out Relationship playerToRelative, out Relationship relativeToPlayer))
+                        this.AddRelationship(player, relativeToPlayer, spouseRelation.Character, playerToRelative);
+                }
             }
 
             // add unknown NPCs

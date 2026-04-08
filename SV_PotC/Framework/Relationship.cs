@@ -54,10 +54,10 @@
         /// <summary>A mother.</summary>
         Mother,
 
-        /// <summary>A father of one's spouse (a step-father).</summary>
+        /// <summary>A male step-parent (a parent's spouse who is not a biological father).</summary>
         StepFather,
 
-        /// <summary>A mother of one's spouse (a step-mother).</summary>
+        /// <summary>A female step-parent (a parent's spouse who is not a biological mother).</summary>
         StepMother,
 
         /// <summary>A grandfather.</summary>
@@ -81,6 +81,24 @@
 
         /// <summary>A female spouse.</summary>
         Wife,
+
+        /// <summary>A father-in-law.</summary>
+        FatherInLaw,
+
+        /// <summary>A mother-in-law.</summary>
+        MotherInLaw,
+
+        /// <summary>A brother-in-law.</summary>
+        BrotherInLaw,
+
+        /// <summary>A sister-in-law.</summary>
+        SisterInLaw,
+
+        /// <summary>A son-in-law.</summary>
+        SonInLaw,
+
+        /// <summary>A daughter-in-law.</summary>
+        DaughterInLaw,
 
         /// <summary>An aunt.</summary>
         Aunt,
@@ -141,6 +159,9 @@
                 Relationship.Grandson or Relationship.Granddaughter => sourceIsMale ? Relationship.Grandfather : Relationship.Grandmother,
                 Relationship.GreatGrandson or Relationship.GreatGranddaughter => sourceIsMale ? Relationship.GreatGrandfather : Relationship.GreatGrandmother,
                 Relationship.Husband or Relationship.Wife => sourceIsMale ? Relationship.Husband : Relationship.Wife,
+                Relationship.FatherInLaw or Relationship.MotherInLaw => sourceIsMale ? Relationship.SonInLaw : Relationship.DaughterInLaw,
+                Relationship.BrotherInLaw or Relationship.SisterInLaw => sourceIsMale ? Relationship.BrotherInLaw : Relationship.SisterInLaw,
+                Relationship.SonInLaw or Relationship.DaughterInLaw => sourceIsMale ? Relationship.FatherInLaw : Relationship.MotherInLaw,
                 Relationship.Aunt or Relationship.Uncle => sourceIsMale ? Relationship.Nephew : Relationship.Niece,
                 Relationship.Nephew or Relationship.Niece => sourceIsMale ? Relationship.Uncle : Relationship.Aunt,
                 Relationship.Godfather or Relationship.Godmother => sourceIsMale ? Relationship.Godson : Relationship.Goddaughter,
@@ -150,6 +171,59 @@
                 Relationship.WarTorn => Relationship.WarTorn,
                 _ => relationship
             };
+        }
+
+        /// <summary>Get the relationship pair created for the player when they marry into a character's existing family.</summary>
+        /// <param name="spouseRelation">The spouse's relationship to their relative.</param>
+        /// <param name="playerIsMale">Whether the player is male.</param>
+        /// <param name="playerToRelative">The relationship from the player to the spouse's relative.</param>
+        /// <param name="relativeToPlayer">The relationship from the spouse's relative back to the player.</param>
+        /// <returns>Returns whether the spouse relationship produces a marriage-derived relationship pair.</returns>
+        public static bool TryGetMarriageDerivedRelationship(this Relationship spouseRelation, bool playerIsMale, out Relationship playerToRelative, out Relationship relativeToPlayer)
+        {
+            switch (spouseRelation)
+            {
+                case Relationship.Father:
+                case Relationship.StepFather:
+                    playerToRelative = Relationship.FatherInLaw;
+                    relativeToPlayer = playerIsMale ? Relationship.SonInLaw : Relationship.DaughterInLaw;
+                    return true;
+
+                case Relationship.Mother:
+                case Relationship.StepMother:
+                    playerToRelative = Relationship.MotherInLaw;
+                    relativeToPlayer = playerIsMale ? Relationship.SonInLaw : Relationship.DaughterInLaw;
+                    return true;
+
+                case Relationship.Brother:
+                case Relationship.HalfBrother:
+                    playerToRelative = Relationship.BrotherInLaw;
+                    relativeToPlayer = playerIsMale ? Relationship.BrotherInLaw : Relationship.SisterInLaw;
+                    return true;
+
+                case Relationship.Sister:
+                case Relationship.HalfSister:
+                    playerToRelative = Relationship.SisterInLaw;
+                    relativeToPlayer = playerIsMale ? Relationship.BrotherInLaw : Relationship.SisterInLaw;
+                    return true;
+
+                case Relationship.Son:
+                case Relationship.StepSon:
+                    playerToRelative = Relationship.StepSon;
+                    relativeToPlayer = playerIsMale ? Relationship.StepFather : Relationship.StepMother;
+                    return true;
+
+                case Relationship.Daughter:
+                case Relationship.StepDaughter:
+                    playerToRelative = Relationship.StepDaughter;
+                    relativeToPlayer = playerIsMale ? Relationship.StepFather : Relationship.StepMother;
+                    return true;
+
+                default:
+                    playerToRelative = default;
+                    relativeToPlayer = default;
+                    return false;
+            }
         }
     }
 }

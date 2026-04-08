@@ -4,13 +4,20 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <StardewModdingApiPath Condition="'$(StardewModdingApiPath)' == '' and '$(STARDEW_MODDING_API_DLL)' != ''">$(STARDEW_MODDING_API_DLL)</StardewModdingApiPath>
+    <StardewModdingApiPath Condition="'$(StardewModdingApiPath)' == '' and '$(STARDEW_VALLEY_PATH)' != ''">$(STARDEW_VALLEY_PATH)/StardewModdingAPI.dll</StardewModdingApiPath>
   </PropertyGroup>
+
+  <Target Name="RequireStardewModdingApiPath" BeforeTargets="ResolveReferences" Condition="'$(StardewModdingApiPath)' == ''">
+    <Error Text="Set the 'StardewModdingApiPath' MSBuild property or the STARDEW_MODDING_API_DLL / STARDEW_VALLEY_PATH environment variable so SV_PotC.Tests can locate StardewModdingAPI.dll." />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="../SV_PotC/PartOfTheCommunity.csproj" />
     <Reference Include="StardewModdingAPI">
-      <HintPath>/home/brandon/.steam/debian-installation/steamapps/common/Stardew Valley/StardewModdingAPI.dll</HintPath>
+      <HintPath>$(StardewModdingApiPath)</HintPath>
       <Private>true</Private>
     </Reference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 </Project>
