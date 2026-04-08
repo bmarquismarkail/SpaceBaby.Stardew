@@ -132,6 +132,15 @@
         "alex": true
       }
     },
+    "harvey": {
+      "displayName": "Harvey",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "maru": true
+      }
+    },
     "jas": {
       "displayName": "Jas",
       "gender": "F",
@@ -197,6 +206,15 @@
         "marnie": true
       }
     },
+    "linus": {
+      "displayName": "Linus",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "willy": true
+      }
+    },
     "marnie": {
       "displayName": "Marnie",
       "gender": "F",
@@ -219,6 +237,7 @@
         "sebastian": "halfsister"
       },
       "friends": {
+        "harvey": true,
         "penny": true
       }
     },
@@ -335,8 +354,16 @@
       "type": "Villager",
       "relationships": {},
       "friends": {
-        "elliott": true
+        "elliott": true,
+        "linus": true
       }
+    },
+    "wizard": {
+      "displayName": "Wizard",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {}
     }
   }
 }
