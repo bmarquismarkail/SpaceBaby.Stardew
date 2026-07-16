@@ -5,9 +5,15 @@ using StardewValley;
 
 namespace SpaceBaby.PartOfTheCommunity.Framework
 {
-    /// <summary>Tracked data for an NPC.</summary>
-    internal class CharacterInfo
+    /// <summary>Tracked data for a character registered with the Part of the Community API.</summary>
+    public sealed class CharacterInfo
     {
+        /*********
+        ** Fields
+        *********/
+        private readonly List<CharacterRelationship> relationships = new();
+
+
         /*********
         ** Accessors
         *********/
@@ -20,11 +26,14 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <summary>Whether the NPC is male.</summary>
         public bool IsMale { get; }
 
-        /// <summary>Whether the NPC owns a shop.</summary>
-        public bool IsShopOwner { get; set; }
+        /// <summary>An optional Stardew 1.6 game-state query that must match before PotC can award this character friendship points.</summary>
+        public string UnlockCondition { get; internal set; }
 
-        /// <summary>The NPC's relationships with other NPCs.</summary>
-        public IList<CharacterRelationship> Relationships { get; } = new List<CharacterRelationship>();
+        /// <summary>Whether the NPC owns a shop.</summary>
+        public bool IsShopOwner { get; internal set; }
+
+        /// <summary>The NPC's known relationships with other characters.</summary>
+        public IReadOnlyList<CharacterRelationship> Relationships => this.relationships.AsReadOnly();
 
 
         /*********
@@ -34,25 +43,66 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <param name="isMale">Whether the NPC is male.</param>
         /// <param name="name">The NPC name.</param>
         /// <param name="type">The character type.</param>
-        public CharacterInfo(string name, bool isMale, CharacterType type = CharacterType.Villager)
+        public CharacterInfo(string name, bool isMale, CharacterType type = CharacterType.Villager, string unlockCondition = null)
         {
             this.Name = name;
             this.IsMale = isMale;
             this.Type = type;
+            this.UnlockCondition = unlockCondition?.Trim() ?? string.Empty;
         }
 
-        /// <summary>Add a relationship to another NPC.</summary>
+        /// <summary>Try to add a relationship to another character.</summary>
         /// <param name="relationship">The target character's relationship to the original character (like 'Mother').</param>
         /// <param name="character">The target character.</param>
-        public void AddRelationship(Relationship relationship, CharacterInfo character)
+        /// <returns>Returns whether a new relationship entry was added.</returns>
+        internal bool TryAddRelationship(Relationship relationship, CharacterInfo character, string unlockCondition = null)
         {
-            this.Relationships.Add(new CharacterRelationship(relationship, character));
+            ArgumentNullException.ThrowIfNull(character);
+
+            CharacterRelationship existing = this.relationships.FirstOrDefault(p => p.Relationship == relationship && string.Equals(p.Character.Name, character.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                if (string.IsNullOrWhiteSpace(existing.UnlockCondition) || string.Equals(existing.UnlockCondition, unlockCondition?.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (!string.IsNullOrWhiteSpace(unlockCondition))
+                    return false;
+
+                this.relationships.Remove(existing);
+            }
+
+            this.relationships.Add(new CharacterRelationship(relationship, character, unlockCondition));
+            return true;
+        }
+
+        /// <summary>Add a relationship to another character.</summary>
+        /// <param name="relationship">The target character's relationship to the original character (like 'Mother').</param>
+        /// <param name="character">The target character.</param>
+        internal void AddRelationship(Relationship relationship, CharacterInfo character, string unlockCondition = null)
+        {
+            this.TryAddRelationship(relationship, character, unlockCondition);
+        }
+
+        /// <summary>Get whether this character can currently receive PotC friendship bonuses for the current game context.</summary>
+        /// <returns>Returns whether the character is currently unlocked.</returns>
+        internal bool IsUnlocked()
+        {
+            return this.IsUnlockedFor(player: null, location: null);
+        }
+
+        /// <summary>Get whether this character can currently receive PotC friendship bonuses.</summary>
+        /// <param name="player">The player for whom the bonus would be awarded.</param>
+        /// <param name="location">The location context for the check.</param>
+        /// <returns>Returns whether the character is currently unlocked.</returns>
+        internal bool IsUnlockedFor(Farmer player = null, GameLocation location = null)
+        {
+            return UnlockConditionHelper.IsUnlocked(this.UnlockCondition, player, location);
         }
 
         /// <summary>Get the in-game instance for this character.</summary>
         /// <param name="npc">The in-game instance for this character.</param>
         /// <returns>Returns whether the NPC was found.</returns>
-        public bool TryGetInstance(out Character npc)
+        internal bool TryGetInstance(out Character npc)
         {
             switch (this.Type)
             {
@@ -76,7 +126,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <summary>Get the NPC for this character.</summary>
         /// <param name="npc">The NPC for this character.</param>
         /// <returns>Returns whether the NPC was found.</returns>
-        public bool TryGetNpc(out NPC npc)
+        internal bool TryGetNpc(out NPC npc)
         {
             if (this.TryGetInstance(out Character character) && character is NPC instance)
             {

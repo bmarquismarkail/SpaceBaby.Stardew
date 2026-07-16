@@ -1,0 +1,26 @@
+{
+  "characters": {
+    "examplecharacter": {
+      "displayName": "ExampleCharacter",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "anotherexample": "sister"
+      },
+      "friends": {
+        "sam": true
+      }
+    },
+    "anotherexample": {
+      "displayName": "AnotherExample",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "examplecharacter": "brother"
+      },
+      "friends": {
+        "abigail": true
+      }
+    }
+  }
+}

@@ -36,6 +36,10 @@ namespace SpaceBaby.PartOfTheCommunity
 
         /// <summary>Metadata for NPCs tracked by the mod.</summary>
         private IDictionary<string, CharacterInfo> Characters;
+        
+        /// <summary>The character manager for loading and managing character relationships.</summary>
+        private CharacterManager CharacterManager;
+        
         private int CurrentNumberOfCompletedBundles;
         private uint CurrentNumberOfCompletedDailyQuests;
         private bool IsReady;
@@ -49,6 +53,12 @@ namespace SpaceBaby.PartOfTheCommunity
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
         public override void Entry(IModHelper helper)
         {
+            // Initialize character manager
+            this.CharacterManager = new CharacterManager(helper, this.Monitor);
+            // Load the baseline before another mod can obtain the API. API registrations made
+            // after this point are never cleared by a later GameLaunched handler.
+            this.CharacterManager.LoadCharacters();
+            
             // Read JSON file or create one if it doesn't exist
             Config = this.Helper.Data.ReadJsonFile<ModConfig>("config.json") ?? new ModConfig();
             // save (generate) config file (if needed)
@@ -60,6 +70,12 @@ namespace SpaceBaby.PartOfTheCommunity
             helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
             helper.Events.GameLoop.Saving += this.OnSaving;
             helper.Events.GameLoop.Saved += this.OnSaved;
+        }
+
+        /// <summary>Get the API that other mods can use to register characters and relationships.</summary>
+        public override object GetApi()
+        {
+            return this.CharacterManager;
         }
 
 
@@ -425,7 +441,7 @@ namespace SpaceBaby.PartOfTheCommunity
                 {
                     if (this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse) && spouse != null)
                     {
-                        foreach (CharacterRelationship relation in spouse.Relationships)
+                        foreach (CharacterRelationship relation in spouse.Relationships.Where(p => p.IsUnlockedFor(farmer)))
                         {
                             if (!relation.Character.TryGetNpc(out NPC relationNpc))
                                 continue;
@@ -472,11 +488,12 @@ namespace SpaceBaby.PartOfTheCommunity
                 var session = PlayerSession.GetSession(farmer);
                 foreach (CharacterInfo character in this.Characters.Values)
                 {
-                    if (!character.TryGetNpc(out NPC npc))
+                    if (!character.IsUnlockedFor(farmer) || !character.TryGetNpc(out NPC npc))
                         continue;
 
                     // Check if this farmer gave gifts to this character's relationships
                     int relationsGifted = character.Relationships.Count(p => 
+                        p.IsUnlockedFor(farmer) &&
                         farmer.friendshipData.ContainsKey(p.Character.Name) && 
                         farmer.friendshipData[p.Character.Name].GiftsToday > 0);
                     
@@ -493,7 +510,7 @@ namespace SpaceBaby.PartOfTheCommunity
                     bool giftedFamily = false;
                     foreach (CharacterRelationship relation in player.Relationships)
                     {
-                        if (relation.IsFamily && farmer.friendshipData.ContainsKey(relation.Character.Name) && farmer.friendshipData[relation.Character.Name].GiftsToday > 0)
+                        if (relation.IsFamily && relation.IsUnlockedFor(farmer) && farmer.friendshipData.ContainsKey(relation.Character.Name) && farmer.friendshipData[relation.Character.Name].GiftsToday > 0)
                         {
                             giftedFamily = true;
                             break;
@@ -504,7 +521,7 @@ namespace SpaceBaby.PartOfTheCommunity
                     {
                         foreach (CharacterRelationship relation in spouse.Relationships)
                         {
-                            if (relation.Character.TryGetNpc(out NPC relationNpc) && relation.IsFamily)
+                            if (relation.IsFamily && relation.IsUnlockedFor(farmer) && relation.Character.TryGetNpc(out NPC relationNpc))
                             {
                                 this.AddFriendshipPoints(farmer, relationNpc, this.Config.UmojaBonus);
                                 this.Monitor.Log($"{farmer.Name}: {relation}'s Friendship raised {this.Config.UmojaBonus} for loving your family.", LogLevel.Info);
@@ -558,135 +575,8 @@ namespace SpaceBaby.PartOfTheCommunity
         /// <summary>Get all available characters.</summary>
         private IDictionary<string, CharacterInfo> GetCharacters()
         {
-            // get predefined characters
-            IEnumerable<CharacterInfo> GetPredefinedCharacters()
-            {
-                // create NPCs
-                var abigail = new CharacterInfo("Abigail", isMale: false);
-                var alex = new CharacterInfo("Alex", isMale: true);
-                var caroline = new CharacterInfo("Caroline", isMale: false);
-                var clint = new CharacterInfo("Clint", isMale: true);
-                var demetrius = new CharacterInfo("Demetrius", isMale: true);
-                var dwarf = new CharacterInfo("Dwarf", isMale: true);
-                var elliott = new CharacterInfo("Elliott", isMale: true);
-                var emily = new CharacterInfo("Emily", isMale: false);
-                var evelyn = new CharacterInfo("Evelyn", isMale: false);
-                var george = new CharacterInfo("George", isMale: true);
-                var gus = new CharacterInfo("Gus", isMale: true);
-                var jas = new CharacterInfo("Jas", isMale: false);
-                var jodi = new CharacterInfo("Jodi", isMale: false);
-                var haley = new CharacterInfo("Haley", isMale: false);
-                var kent = new CharacterInfo("Kent", isMale: true);
-                var krobus = new CharacterInfo("Krobus", isMale: true);
-                var leah = new CharacterInfo("Leah", isMale: false);
-                var maru = new CharacterInfo("Maru", isMale: false);
-                var marnie = new CharacterInfo("Marnie", isMale: false);
-                var lewis = new CharacterInfo("Lewis", isMale: true);
-                var pam = new CharacterInfo("Pam", isMale: false);
-                var penny = new CharacterInfo("Penny", isMale: false);
-                var pierre = new CharacterInfo("Pierre", isMale: true);
-                var robin = new CharacterInfo("Robin", isMale: false);
-                var sam = new CharacterInfo("Sam", isMale: true);
-                var sandy = new CharacterInfo("Sandy", isMale: false);
-                var sebastian = new CharacterInfo("Sebastian", isMale: true);
-                var shane = new CharacterInfo("Shane", isMale: true);
-                var vincent = new CharacterInfo("Vincent", isMale: true);
-                var willy = new CharacterInfo("Willy", isMale: true);
-
-                // Caroline's family
-                this.AddRelationship(caroline, Relationship.Mother, abigail, Relationship.Daughter);
-                this.AddRelationship(caroline, Relationship.Wife, pierre, Relationship.Husband);
-                this.AddRelationship(pierre, Relationship.Father, abigail, Relationship.Daughter);
-
-                // Emily's family
-                this.AddRelationship(haley, Relationship.Sister, emily, Relationship.Sister);
-
-                // Evelyn's family
-                this.AddRelationship(evelyn, Relationship.Grandmother, alex, Relationship.Grandson);
-                this.AddRelationship(evelyn, Relationship.Wife, george, Relationship.Husband);
-                this.AddRelationship(george, Relationship.Grandfather, alex, Relationship.Grandson);
-
-                // Jodi's family
-                this.AddRelationship(jodi, Relationship.Mother, sam, Relationship.Son);
-                this.AddRelationship(jodi, Relationship.Mother, vincent, Relationship.Son);
-                this.AddRelationship(jodi, Relationship.Wife, kent, Relationship.Husband);
-                this.AddRelationship(kent, Relationship.Father, sam, Relationship.Son);
-                this.AddRelationship(kent, Relationship.Father, vincent, Relationship.Son);
-                this.AddRelationship(sam, Relationship.Brother, vincent, Relationship.Brother);
-
-                // Marnie's family
-                this.AddRelationship(marnie, Relationship.Aunt, jas, Relationship.Niece);
-                this.AddRelationship(marnie, Relationship.Aunt, shane, Relationship.Nephew);
-                this.AddRelationship(jas, Relationship.Goddaughter, shane, Relationship.Godfather);
-
-                // Pam's family
-                this.AddRelationship(pam, Relationship.Mother, penny, Relationship.Daughter);
-
-                // Robin's family
-                this.AddRelationship(robin, Relationship.Mother, maru, Relationship.Daughter);
-                this.AddRelationship(robin, Relationship.Mother, sebastian, Relationship.Son);
-                this.AddRelationship(robin, Relationship.Wife, demetrius, Relationship.Husband);
-                this.AddRelationship(demetrius, Relationship.Father, maru, Relationship.Daughter);
-                this.AddRelationship(demetrius, Relationship.StepFather, sebastian, Relationship.StepSon);
-                this.AddRelationship(maru, Relationship.HalfSister, sebastian, Relationship.HalfBrother);
-
-                // friends
-                this.AddFriend(abigail, sam);
-                this.AddFriend(abigail, sebastian);
-                this.AddFriend(caroline, kent);
-                this.AddFriend(elliott, willy);
-                this.AddFriend(emily, clint);
-                this.AddFriend(emily, gus);
-                this.AddFriend(emily, sandy);
-                this.AddFriend(emily, shane);
-                this.AddFriend(haley, alex);
-                this.AddFriend(jas, vincent);
-                this.AddFriend(jodi, caroline);
-                this.AddFriend(leah, elliott);
-                this.AddFriend(marnie, lewis);
-                this.AddFriend(pam, gus);
-                this.AddFriend(penny, maru);
-                this.AddFriend(penny, sam);
-                this.AddFriend(sam, sebastian);
-
-                // other
-                this.AddRelationship(dwarf, Relationship.WarTorn, krobus, Relationship.WarTorn);
-
-                return new[]
-                {
-                    abigail,
-                    alex,
-                    caroline,
-                    clint,
-                    demetrius,
-                    dwarf,
-                    elliott,
-                    emily,
-                    evelyn,
-                    george,
-                    gus,
-                    jas,
-                    jodi,
-                    haley,
-                    kent,
-                    krobus,
-                    leah,
-                    maru,
-                    marnie,
-                    lewis,
-                    pam,
-                    penny,
-                    pierre,
-                    robin,
-                    sam,
-                    sandy,
-                    sebastian,
-                    shane,
-                    vincent,
-                    willy
-                };
-            }
-            IDictionary<string, CharacterInfo> characters = GetPredefinedCharacters().ToDictionary(p => p.Name);
+            // Start with characters from the character manager (includes data file characters and API registrations)
+            IDictionary<string, CharacterInfo> characters = this.CharacterManager.GetCharactersDictionary().ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
             // mark shopkeepers
             {
@@ -707,6 +597,14 @@ namespace SpaceBaby.PartOfTheCommunity
                 {
                     spouse = new CharacterInfo(Game1.player.spouse, isMale: Utility.isMale(Game1.player.spouse));
                     characters[spouse.Name] = spouse;
+                }
+
+                this.AddRelationship(player, player.IsMale ? Relationship.Husband : Relationship.Wife, spouse, spouse.IsMale ? Relationship.Husband : Relationship.Wife);
+
+                foreach (CharacterRelationship spouseRelation in spouse.Relationships.ToList())
+                {
+                    if (spouseRelation.Relationship.TryGetMarriageDerivedRelationship(player.IsMale, out Relationship playerToRelative, out Relationship relativeToPlayer))
+                        this.AddRelationship(player, relativeToPlayer, spouseRelation.Character, playerToRelative);
                 }
             }
 
@@ -796,8 +694,13 @@ namespace SpaceBaby.PartOfTheCommunity
         /// <param name="points">The number of points to add.</param>
         private void AddFriendshipPoints(Farmer farmer, NPC npc, int points)
         {
-            if (npc != null && farmer != null) // e.g. Kent might not have arrived yet
-                farmer.changeFriendship(points, npc);
+            if (npc == null || farmer == null) // e.g. Kent might not have arrived yet
+                return;
+
+            if (this.Characters != null && this.Characters.TryGetValue(npc.Name, out CharacterInfo character) && !character.IsUnlockedFor(farmer, npc.currentLocation))
+                return;
+
+            farmer.changeFriendship(points, npc);
         }
 
         private static int GetCurrentDayKey()

@@ -2,11 +2,7 @@
   <PropertyGroup>
     <RootNamespace>SpaceBaby.PartOfTheCommunity</RootNamespace>
     <AssemblyName>PartOfTheCommunity</AssemblyName>
-    <Version>1.3.2</Version>
-    <!-- Prevent duplicate assembly attribute generation when explicit attributes exist -->
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-  <!-- Prevent generation of the TargetFrameworkAttribute which can duplicate when custom assembly info is present -->
-  <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <Version>1.4.0</Version>
     <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
@@ -17,6 +13,25 @@
     <OutputPath>bin\Release</OutputPath>
   </PropertyGroup>
   <ItemGroup>
-  <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.3.0" />
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.3.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SV_PotC.Tests" />
+
+    <!-- Runtime data required by CharacterManager.LoadCharacters. -->
+    <None Update="Data/default_characters.json" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- Ship integration documentation without loading the example as live character data. -->
+    <None Update="Data/example_character_pack.json" CopyToOutputDirectory="PreserveNewest" TargetPath="docs/example_character_pack.json" />
+    <None Update="API_README.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="README.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="LICENSE" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="ValidatePotcPackageInputs" BeforeTargets="AfterBuild">
+    <Error Condition="!Exists('$(TargetDir)Data/default_characters.json')" Text="Required PotC runtime data is missing from the build output: Data/default_characters.json." />
+    <Error Condition="!Exists('$(TargetDir)API_README.md')" Text="PotC API documentation is missing from the build output: API_README.md." />
+  </Target>
 </Project>

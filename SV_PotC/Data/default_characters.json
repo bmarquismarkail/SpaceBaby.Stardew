@@ -1,0 +1,397 @@
+{
+  "characters": {
+    "abigail": {
+      "displayName": "Abigail",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "caroline": "daughter",
+        "pierre": "daughter"
+      },
+      "friends": {
+        "sam": true,
+        "sebastian": true
+      }
+    },
+    "alex": {
+      "displayName": "Alex",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "evelyn": "grandson",
+        "george": "grandson"
+      },
+      "friends": {
+        "haley": true
+      }
+    },
+    "caroline": {
+      "displayName": "Caroline",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "abigail": "mother",
+        "pierre": "wife"
+      },
+      "friends": {
+        "kent": true,
+        "jodi": true
+      }
+    },
+    "clint": {
+      "displayName": "Clint",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "emily": true
+      }
+    },
+    "demetrius": {
+      "displayName": "Demetrius",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "robin": "husband",
+        "maru": "father",
+        "sebastian": "stepfather"
+      },
+      "friends": {}
+    },
+    "dwarf": {
+      "displayName": "Dwarf",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "krobus": "wartorn"
+      },
+      "friends": {}
+    },
+    "elliott": {
+      "displayName": "Elliott",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "willy": true,
+        "leah": true
+      }
+    },
+    "emily": {
+      "displayName": "Emily",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "haley": "sister"
+      },
+      "friends": {
+        "clint": true,
+        "gus": true,
+        "sandy": true,
+        "shane": true
+      }
+    },
+    "evelyn": {
+      "displayName": "Evelyn",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "alex": "grandmother",
+        "george": "wife"
+      },
+      "friends": {}
+    },
+    "george": {
+      "displayName": "George",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "evelyn": "husband",
+        "alex": "grandfather"
+      },
+      "friends": {}
+    },
+    "gus": {
+      "displayName": "Gus",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "emily": true,
+        "pam": true
+      }
+    },
+    "haley": {
+      "displayName": "Haley",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "emily": "sister"
+      },
+      "friends": {
+        "alex": true
+      }
+    },
+    "harvey": {
+      "displayName": "Harvey",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "maru": true
+      }
+    },
+    "jas": {
+      "displayName": "Jas",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "marnie": "niece",
+        "shane": "goddaughter"
+      },
+      "friends": {
+        "leo": true,
+        "vincent": true
+      },
+      "friendConditions": {
+        "leo": "PLAYER_HAS_MAIL Current leoMoved"
+      }
+    },
+    "jodi": {
+      "displayName": "Jodi",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "sam": "mother",
+        "vincent": "mother",
+        "kent": "wife"
+      },
+      "friends": {
+        "caroline": true
+      }
+    },
+    "kent": {
+      "displayName": "Kent",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "jodi": "husband",
+        "sam": "father",
+        "vincent": "father"
+      },
+      "friends": {
+        "caroline": true
+      }
+    },
+    "krobus": {
+      "displayName": "Krobus",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "dwarf": "wartorn"
+      },
+      "friends": {}
+    },
+    "leah": {
+      "displayName": "Leah",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "elliott": true
+      }
+    },
+    "leo": {
+      "displayName": "Leo",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "jas": true,
+        "linus": true,
+        "vincent": true
+      },
+      "friendConditions": {
+        "jas": "PLAYER_HAS_MAIL Current leoMoved",
+        "linus": "PLAYER_HAS_MAIL Current leoMoved",
+        "vincent": "PLAYER_HAS_MAIL Current leoMoved"
+      }
+    },
+    "lewis": {
+      "displayName": "Lewis",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "marnie": true
+      }
+    },
+    "linus": {
+      "displayName": "Linus",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "leo": true,
+        "willy": true
+      },
+      "friendConditions": {
+        "leo": "PLAYER_HAS_MAIL Current leoMoved"
+      }
+    },
+    "marnie": {
+      "displayName": "Marnie",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "jas": "aunt",
+        "shane": "aunt"
+      },
+      "friends": {
+        "lewis": true
+      }
+    },
+    "maru": {
+      "displayName": "Maru",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "robin": "daughter",
+        "demetrius": "daughter",
+        "sebastian": "halfsister"
+      },
+      "friends": {
+        "harvey": true,
+        "penny": true
+      }
+    },
+    "pam": {
+      "displayName": "Pam",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "penny": "mother"
+      },
+      "friends": {
+        "gus": true
+      }
+    },
+    "penny": {
+      "displayName": "Penny",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "pam": "daughter"
+      },
+      "friends": {
+        "maru": true,
+        "sam": true
+      }
+    },
+    "pierre": {
+      "displayName": "Pierre",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "caroline": "husband",
+        "abigail": "father"
+      },
+      "friends": {}
+    },
+    "robin": {
+      "displayName": "Robin",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "maru": "mother",
+        "sebastian": "mother",
+        "demetrius": "wife"
+      },
+      "friends": {}
+    },
+    "sam": {
+      "displayName": "Sam",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "jodi": "son",
+        "kent": "son",
+        "vincent": "brother"
+      },
+      "friends": {
+        "abigail": true,
+        "penny": true,
+        "sebastian": true
+      }
+    },
+    "sandy": {
+      "displayName": "Sandy",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "emily": true
+      }
+    },
+    "sebastian": {
+      "displayName": "Sebastian",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "robin": "son",
+        "demetrius": "stepson",
+        "maru": "halfbrother"
+      },
+      "friends": {
+        "abigail": true,
+        "sam": true
+      }
+    },
+    "shane": {
+      "displayName": "Shane",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "marnie": "nephew",
+        "jas": "godfather"
+      },
+      "friends": {
+        "emily": true
+      }
+    },
+    "vincent": {
+      "displayName": "Vincent",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {
+        "jodi": "son",
+        "kent": "son",
+        "sam": "brother"
+      },
+      "friends": {
+        "jas": true,
+        "leo": true
+      },
+      "friendConditions": {
+        "leo": "PLAYER_HAS_MAIL Current leoMoved"
+      }
+    },
+    "willy": {
+      "displayName": "Willy",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {
+        "elliott": true,
+        "linus": true
+      }
+    },
+    "wizard": {
+      "displayName": "Wizard",
+      "gender": "M",
+      "type": "Villager",
+      "relationships": {},
+      "friends": {}
+    }
+  }
+}
