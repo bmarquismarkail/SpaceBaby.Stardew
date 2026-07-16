@@ -4,7 +4,7 @@ using StardewValley;
 namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>Tracked data for a character relationship exposed through the API.</summary>
-    public class CharacterRelationship
+    public sealed class CharacterRelationship
     {
         /*********
         ** Accessors
@@ -31,7 +31,7 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <summary>Construct an instance.</summary>
         /// <param name="relationship">The target character's relationship to the original character (like 'Mother').</param>
         /// <param name="character">The target character.</param>
-        public CharacterRelationship(Relationship relationship, CharacterInfo character, string unlockCondition = null)
+        internal CharacterRelationship(Relationship relationship, CharacterInfo character, string unlockCondition = null)
         {
             ArgumentNullException.ThrowIfNull(character);
 
@@ -42,18 +42,18 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
 
         /// <summary>Get whether this relationship is currently unlocked for PotC bonuses in the current game context.</summary>
         /// <returns>Returns whether the relationship is currently unlocked.</returns>
-        public bool IsUnlocked()
+        internal bool IsUnlocked()
         {
-            return this.IsUnlocked(player: null, location: null);
+            return this.IsUnlockedFor(player: null, location: null);
         }
 
         /// <summary>Get whether this relationship is currently unlocked for PotC bonuses.</summary>
         /// <param name="player">The player for whom the bonus would be awarded.</param>
         /// <param name="location">The location context for the check.</param>
         /// <returns>Returns whether the relationship is currently unlocked.</returns>
-        internal bool IsUnlocked(Farmer player = null, GameLocation location = null)
+        internal bool IsUnlockedFor(Farmer player = null, GameLocation location = null)
         {
-            return this.Character.IsUnlocked(player, location)
+            return this.Character.IsUnlockedFor(player, location)
                 && UnlockConditionHelper.IsUnlocked(this.UnlockCondition, player, location);
         }
     }

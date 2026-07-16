@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <StardewModdingApiPath Condition="'$(StardewModdingApiPath)' == '' and '$(STARDEW_MODDING_API_DLL)' != ''">$(STARDEW_MODDING_API_DLL)</StardewModdingApiPath>
@@ -9,16 +8,15 @@
   </PropertyGroup>
 
   <Target Name="RequireStardewModdingApiPath" BeforeTargets="ResolveReferences" Condition="'$(StardewModdingApiPath)' == ''">
-    <Error Text="Set the 'StardewModdingApiPath' MSBuild property or the STARDEW_MODDING_API_DLL / STARDEW_VALLEY_PATH environment variable so SV_PotC.Tests can locate StardewModdingAPI.dll." />
+    <Error Text="Set the 'StardewModdingApiPath' MSBuild property or the STARDEW_MODDING_API_DLL / STARDEW_VALLEY_PATH environment variable so the consumer smoke project can compile its ModRegistry.GetApi call." />
   </Target>
 
   <ItemGroup>
-    <ProjectReference Include="../SV_PotC/PartOfTheCommunity.csproj" />
-    <ProjectReference Include="../SV_PotC.Api.ConsumerSmoke/SV_PotC.Api.ConsumerSmoke.csproj" />
+    <!-- Match the documented consumer setup: compile against PotC without copying its DLL. -->
+    <ProjectReference Include="../SV_PotC/PartOfTheCommunity.csproj" Private="false" />
     <Reference Include="StardewModdingAPI">
       <HintPath>$(StardewModdingApiPath)</HintPath>
-      <Private>true</Private>
+      <Private>false</Private>
     </Reference>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 </Project>

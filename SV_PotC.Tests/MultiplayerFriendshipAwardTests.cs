@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using SpaceBaby.PartOfTheCommunity.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Framework.Logging;
+using SV_PotC.Api.ConsumerSmoke;
 
 namespace SV_PotC.Tests;
 
@@ -22,6 +23,10 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(CharacterInfo_TracksRelationshipsThroughPublicApiModel), CharacterInfo_TracksRelationshipsThroughPublicApiModel);
         Run(nameof(CharacterInfo_DoesNotDuplicateIdenticalRelationships), CharacterInfo_DoesNotDuplicateIdenticalRelationships);
         Run(nameof(CharacterInfo_RespectsUnlockConditions), CharacterInfo_RespectsUnlockConditions);
+        Run(nameof(ApiContract_PublicMetadataIsImmutable), ApiContract_PublicMetadataIsImmutable);
+        Run(nameof(ApiContract_AssemblyVersionMatchesRelease), ApiContract_AssemblyVersionMatchesRelease);
+        Run(nameof(ApiConsumer_CanRegisterAndReadThroughPublicContract), ApiConsumer_CanRegisterAndReadThroughPublicContract);
+        Run(nameof(CharacterManager_DoesNotDiscardRegistrationsAfterInitialization), CharacterManager_DoesNotDiscardRegistrationsAfterInitialization);
         Run(nameof(FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships), FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships);
         Run(nameof(FlatCharacterPack_LoadsConditionalUnlockMetadata), FlatCharacterPack_LoadsConditionalUnlockMetadata);
         Run(nameof(CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax), CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax);
@@ -223,6 +228,76 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.False(leo.Relationships[0].IsUnlocked(), "A FALSE game-state query should also block the conditional relationship link.");
     }
 
+    private void ApiContract_PublicMetadataIsImmutable()
+    {
+        string[] forbiddenCharacterMethods =
+        {
+            "AddRelationship",
+            "TryAddRelationship",
+            "IsUnlocked",
+            "TryGetInstance",
+            "TryGetNpc"
+        };
+
+        foreach (string methodName in forbiddenCharacterMethods)
+        {
+            MethodInfo? method = typeof(CharacterInfo).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
+            Assert.True(method == null, $"CharacterInfo.{methodName} must remain behind the provider boundary.");
+        }
+
+        Assert.False(
+            typeof(CharacterRelationship).GetConstructors(BindingFlags.Instance | BindingFlags.Public).Any(),
+            "Consumers must not be able to construct relationship entries outside the registration API."
+        );
+
+        CharacterInfo robin = new("Robin", isMale: false);
+        CharacterInfo sebastian = new("Sebastian", isMale: true);
+        robin.AddRelationship(Relationship.StepMother, sebastian);
+
+        IList<CharacterRelationship> relationships = (IList<CharacterRelationship>)robin.Relationships;
+        Assert.Throws<NotSupportedException>(
+            () => relationships.Clear(),
+            "The relationship metadata collection must reject consumer mutation."
+        );
+    }
+
+    private void ApiContract_AssemblyVersionMatchesRelease()
+    {
+        Version? version = typeof(IPartOfTheCommunityApi).Assembly.GetName().Version;
+        Assert.Equal(new Version(1, 4, 0, 0), version, "The public API assembly version should match the 1.4.0 release.");
+    }
+
+    private void ApiConsumer_CanRegisterAndReadThroughPublicContract()
+    {
+        var (manager, _) = CreateCharacterManager();
+        IReadOnlyDictionary<string, CharacterInfo> characters = PotcApiConsumer.RegisterPair((IPartOfTheCommunityApi)manager);
+
+        Assert.True(characters.ContainsKey("ConsumerSmokeA"), "A separately compiled consumer should be able to register a character.");
+        Assert.True(
+            characters["ConsumerSmokeA"].Relationships.Any(p => p.Character.Name == "ConsumerSmokeB" && p.Relationship == Relationship.Brother),
+            "A separately compiled consumer should be able to create and read a reciprocal relationship."
+        );
+        Assert.True(
+            characters["ConsumerSmokeB"].Relationships.Any(p => p.Character.Name == "ConsumerSmokeA" && p.Relationship == Relationship.Sister),
+            "The provider should retain control of the inverse relationship."
+        );
+    }
+
+    private void CharacterManager_DoesNotDiscardRegistrationsAfterInitialization()
+    {
+        var (managerObject, _) = CreateCharacterManager();
+        CharacterManager manager = (CharacterManager)managerObject;
+        IPartOfTheCommunityApi api = manager;
+
+        FieldInfo isLoaded = typeof(CharacterManager).GetField("IsLoaded", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Could not locate CharacterManager.IsLoaded.");
+        isLoaded.SetValue(manager, true);
+
+        Assert.True(api.TryRegisterCharacter("LoadOrderNPC", isMale: true), "Registration should succeed once baseline initialization is complete.");
+        manager.LoadCharacters();
+        Assert.True(api.IsCharacterRegistered("LoadOrderNPC"), "An idempotent load call must not discard an API registration.");
+    }
+
     private void FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships()
     {
         var (manager, loadFlatCharacterPack) = CreateCharacterManager();
@@ -406,5 +481,20 @@ internal static class Assert
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
             throw new InvalidOperationException($"{message} Expected: {expected}. Actual: {actual}.");
+    }
+
+    public static void Throws<TException>(Action action, string message)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+        }
+        catch (TException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(message);
     }
 }

@@ -251,6 +251,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <returns>A dictionary of character names to character info.</returns>
         public IReadOnlyDictionary<string, CharacterInfo> GetAllCharacters()
         {
+            // The dictionary is detached and CharacterInfo exposes metadata only; all graph
+            // mutation stays behind the registration API so reciprocal links remain consistent.
             return new Dictionary<string, CharacterInfo>(this.Characters, StringComparer.OrdinalIgnoreCase);
         }
 

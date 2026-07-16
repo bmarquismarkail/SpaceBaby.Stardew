@@ -12,4 +12,5 @@ If you want to integrate with PotC from another mod, see:
 
 - Target framework: `net6.0`
 - SMAPI minimum version: `4.3.0`
-- External integrations should acquire the API during `GameLaunched`
+- External integrations should declare a manifest dependency on PotC and acquire the API during `GameLaunched`.
+- The runtime API is ready before `GameLaunched`; see `API_README.md` for the safe compile-time reference configuration.

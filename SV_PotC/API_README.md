@@ -2,6 +2,33 @@
 
 Part of the Community now provides an API that allows other mods to register custom characters and relationships. This document explains how to use the API.
 
+## Add the dependency and compile-time reference
+
+The API uses public contract types from `PartOfTheCommunity.dll`. Add PotC as a required dependency so SMAPI loads the provider before your mod and the contract assembly is always available:
+
+```json
+"Dependencies": [
+  {
+    "UniqueID": "SpaceBaby.PartOfTheCommunity",
+    "MinimumVersion": "1.4.0",
+    "IsRequired": true
+  }
+]
+```
+
+Reference the installed PotC DLL for compilation, but do **not** copy it into your own mod package. Bundling a second copy can create conflicting API type identities at runtime.
+
+```xml
+<ItemGroup>
+  <Reference Include="PartOfTheCommunity">
+    <HintPath>/path/to/Stardew Valley/Mods/PartOfTheCommunity/PartOfTheCommunity.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+</ItemGroup>
+```
+
+Keep the machine-specific path in a local MSBuild property or environment-specific build file rather than committing it. PotC's release ZIP includes this document and the DLL needed for the reference.
+
 ## Getting the API
 
 ```csharp
@@ -106,6 +133,8 @@ public class CharacterInfo
 ```
 
 `GetAllCharacters()` returns a read-only dictionary of character names to `CharacterInfo` objects using this shape.
+
+The returned character and relationship objects are immutable metadata views. Register characters and modify relationships only through `IPartOfTheCommunityApi`; this preserves validation, duplicate handling, and reciprocal links.
 
 ### Recommended calling pattern
 
@@ -302,3 +331,10 @@ Use these lowercase strings in the JSON relationships:
 - When the player marries a character, PotC also derives spouse, in-law, and step-family relationships at runtime from that spouse's known family data.
 - The convenience `AddRelationship`, `AddFriendship`, and `RegisterCharacter` methods still log invalid operations for backwards compatibility.
 - Character registration should happen in the `GameLaunched` event to ensure proper initialization.
+- PotC loads its baseline character graph during its own `Entry` call, before another dependency-ordered mod can receive the API. Repeated load calls do not discard registrations.
+
+## Compatibility and versioning
+
+- The manifest, package, and assembly use the same API version. Consumers should set `MinimumVersion` to the first PotC version containing the contract they require.
+- Additive API members are intended to remain backwards compatible within the same major version. Removing or changing an existing method, enum value, or metadata property requires a major-version release.
+- The API must be called from SMAPI's main thread. PotC keeps mutable Stardew objects and game-state-query evaluation behind the provider boundary; consumers receive immutable metadata.
