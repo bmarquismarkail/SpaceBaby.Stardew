@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <StardewModdingApiPath Condition="'$(StardewModdingApiPath)' == '' and '$(STARDEW_MODDING_API_DLL)' != ''">$(STARDEW_MODDING_API_DLL)</StardewModdingApiPath>
     <StardewModdingApiPath Condition="'$(StardewModdingApiPath)' == '' and '$(STARDEW_VALLEY_PATH)' != ''">$(STARDEW_VALLEY_PATH)/StardewModdingAPI.dll</StardewModdingApiPath>
+    <StardewModdingApiDirectory Condition="'$(StardewModdingApiPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(StardewModdingApiPath)'))</StardewModdingApiDirectory>
   </PropertyGroup>
 
   <Target Name="RequireStardewModdingApiPath" BeforeTargets="ResolveReferences" Condition="'$(StardewModdingApiPath)' == ''">
@@ -17,6 +18,10 @@
     <ProjectReference Include="../SV_PotC.Api.ConsumerSmoke/SV_PotC.Api.ConsumerSmoke.csproj" />
     <Reference Include="StardewModdingAPI">
       <HintPath>$(StardewModdingApiPath)</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="SMAPI.Toolkit.CoreInterfaces">
+      <HintPath>$(StardewModdingApiDirectory)/smapi-internal/SMAPI.Toolkit.CoreInterfaces.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

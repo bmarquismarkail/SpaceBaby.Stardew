@@ -9,6 +9,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
     /// <summary>Manages character loading from both JSON files and API registrations.</summary>
     internal class CharacterManager : IPartOfTheCommunityApi
     {
+        private const string ContentPackFileName = "content.json";
+
         /*********
         ** Fields
         *********/
@@ -60,8 +62,12 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                 }
             }
 
+            // Load first-class SMAPI content packs after bundled/local data. Character
+            // definitions across all packs are registered before any links are resolved.
+            this.LoadOwnedContentPacks(this.Helper.ContentPacks.GetOwned());
+
             this.IsLoaded = true;
-            this.Monitor.Log($"Loaded {this.Characters.Count} characters from data files.", LogLevel.Info);
+            this.Monitor.Log($"Loaded {this.Characters.Count} characters from data files and content packs.", LogLevel.Info);
         }
 
         /// <summary>Try to register a character that can have relationships with others.</summary>
@@ -271,6 +277,67 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
             return this.Characters;
         }
 
+        /// <summary>Load all SMAPI content packs owned by PotC.</summary>
+        /// <param name="contentPacks">The owned content packs.</param>
+        internal void LoadOwnedContentPacks(IEnumerable<IContentPack> contentPacks)
+        {
+            var loadedPacks = new List<(CharacterPackFlat Data, string Source)>();
+
+            foreach (IContentPack contentPack in contentPacks ?? Enumerable.Empty<IContentPack>())
+            {
+                string source = contentPack.Manifest?.UniqueID ?? contentPack.DirectoryPath ?? "unknown content pack";
+
+                try
+                {
+                    if (!contentPack.HasFile(ContentPackFileName))
+                    {
+                        this.Monitor.Log($"Ignoring PotC content pack '{source}' because it has no {ContentPackFileName} file.", LogLevel.Warn);
+                        continue;
+                    }
+
+                    CharacterPackFlat data = contentPack.ReadJsonFile<CharacterPackFlat>(ContentPackFileName);
+                    if (data?.Characters == null)
+                    {
+                        this.Monitor.Log($"Ignoring PotC content pack '{source}' because {ContentPackFileName} is empty or has no characters object.", LogLevel.Warn);
+                        continue;
+                    }
+
+                    loadedPacks.Add((data, $"content pack '{source}'"));
+                }
+                catch (Exception ex)
+                {
+                    this.Monitor.Log($"Failed loading PotC content pack '{source}': {ex.Message}", LogLevel.Error);
+                }
+            }
+
+            // Resolve in two global passes so one content pack can reference a display name
+            // registered by another pack regardless of SMAPI's content-pack ordering.
+            foreach ((CharacterPackFlat data, string source) in loadedPacks)
+            {
+                try
+                {
+                    this.LoadFlatCharacterDefinitions(data, source);
+                }
+                catch (Exception ex)
+                {
+                    this.Monitor.Log($"Failed registering characters from {source}: {ex.Message}", LogLevel.Error);
+                }
+            }
+
+            foreach ((CharacterPackFlat data, string source) in loadedPacks)
+            {
+                try
+                {
+                    this.LoadFlatCharacterRelationships(data, source);
+                    this.Monitor.Log($"Loaded {data.Characters.Count} characters from {source}.", LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    this.Monitor.Log($"Failed resolving relationships from {source}: {ex.Message}", LogLevel.Error);
+                }
+            }
+        }
+
 
         /*********
         ** Private methods
@@ -322,15 +389,26 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         {
             this.Monitor.Log($"Loading flat character pack from '{relativePath}'", LogLevel.Info);
 
-            // First pass: Load all characters
+            this.LoadFlatCharacterDefinitions(pack, relativePath);
+            this.LoadFlatCharacterRelationships(pack, relativePath);
+
+            this.Monitor.Log($"Loaded {pack.Characters.Count} characters from flat format in '{relativePath}'", LogLevel.Debug);
+        }
+
+        /// <summary>Register every character definition in a flat pack.</summary>
+        private void LoadFlatCharacterDefinitions(CharacterPackFlat pack, string source)
+        {
+            if (pack?.Characters == null)
+                return;
+
             foreach (var kvp in pack.Characters)
             {
                 string characterKey = kvp.Key;
                 CharacterEntry entry = kvp.Value;
 
-                if (string.IsNullOrWhiteSpace(entry.DisplayName))
+                if (entry == null || string.IsNullOrWhiteSpace(entry.DisplayName))
                 {
-                    this.Monitor.Log($"Skipping character '{characterKey}' with null or empty display name", LogLevel.Warn);
+                    this.Monitor.Log($"Skipping character '{characterKey}' with null or empty display name in {source}.", LogLevel.Warn);
                     continue;
                 }
 
@@ -349,14 +427,20 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                         existingCharacter.UnlockCondition = entry.UnlockCondition.Trim();
                 }
             }
+        }
 
-            // Second pass: Load relationships and friendships
+        /// <summary>Resolve every relationship and friendship in a flat pack.</summary>
+        private void LoadFlatCharacterRelationships(CharacterPackFlat pack, string source)
+        {
+            if (pack?.Characters == null)
+                return;
+
             foreach (var kvp in pack.Characters)
             {
                 string characterKey = kvp.Key;
                 CharacterEntry entry = kvp.Value;
 
-                if (string.IsNullOrWhiteSpace(entry.DisplayName) || !this.Characters.TryGetValue(entry.DisplayName, out CharacterInfo character))
+                if (entry == null || string.IsNullOrWhiteSpace(entry.DisplayName) || !this.Characters.TryGetValue(entry.DisplayName, out CharacterInfo character))
                     continue;
 
                 // Load relationships
@@ -372,16 +456,16 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                             string unlockCondition = null;
                             entry.RelationshipConditions?.TryGetValue(otherCharKey, out unlockCondition);
                             character.AddRelationship(relationship, otherCharacter, unlockCondition);
-                            otherCharacter.AddRelationship(relationship.GetInverse(character.IsMale), character, unlockCondition);
+                            otherCharacter.AddRelationship(relationship.GetReciprocal(otherCharacter.IsMale), character, unlockCondition);
                         }
                         else
                         {
-                            this.Monitor.Log($"Unknown relationship type '{relationshipStr}' for {entry.DisplayName} -> {otherCharacter.Name}", LogLevel.Warn);
+                            this.Monitor.Log($"Unknown relationship type '{relationshipStr}' for {entry.DisplayName} -> {otherCharacter.Name} in {source}.", LogLevel.Warn);
                         }
                     }
                     else
                     {
-                        this.Monitor.Log($"Skipping relationship: character '{otherCharKey}' not found for {entry.DisplayName}", LogLevel.Warn);
+                        this.Monitor.Log($"Skipping relationship in {source}: character '{otherCharKey}' not found for {entry.DisplayName}.", LogLevel.Warn);
                     }
                 }
 
@@ -403,12 +487,10 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     }
                     else
                     {
-                        this.Monitor.Log($"Skipping friendship: character '{friendKey}' not found for {entry.DisplayName}", LogLevel.Warn);
+                        this.Monitor.Log($"Skipping friendship in {source}: character '{friendKey}' not found for {entry.DisplayName}.", LogLevel.Warn);
                     }
                 }
             }
-
-            this.Monitor.Log($"Loaded {pack.Characters.Count} characters from flat format in '{relativePath}'", LogLevel.Debug);
         }
 
         /// <summary>Try to resolve a character by pack key or display name.</summary>

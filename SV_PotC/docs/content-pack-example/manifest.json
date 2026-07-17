@@ -1,0 +1,12 @@
+{
+  "Name": "Example Part of the Community Relationship Pack",
+  "Author": "Your Name",
+  "Version": "1.0.0",
+  "Description": "Adds example characters and relationships to Part of the Community.",
+  "UniqueID": "YourName.PotCExampleRelationships",
+  "ContentPackFor": {
+    "UniqueID": "SpaceBaby.PartOfTheCommunity",
+    "MinimumVersion": "1.4.0"
+  },
+  "UpdateKeys": []
+}

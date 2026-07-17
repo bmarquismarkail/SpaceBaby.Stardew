@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using SpaceBaby.PartOfTheCommunity.Framework;
 
 namespace SV_PotC.Tests;
@@ -12,13 +13,16 @@ internal sealed class ReleasePackageTests
         "PartOfTheCommunity/PartOfTheCommunity.dll",
         "PartOfTheCommunity/Data/default_characters.json",
         "PartOfTheCommunity/API_README.md",
-        "PartOfTheCommunity/docs/example_character_pack.json"
+        "PartOfTheCommunity/docs/example_character_pack.json",
+        "PartOfTheCommunity/docs/content-pack-example/manifest.json",
+        "PartOfTheCommunity/docs/content-pack-example/content.json"
     };
 
     public void RunAll(string packagePath)
     {
         Run(nameof(ReleasePackage_ContainsRuntimeDataAndApiDocumentation), () => this.ReleasePackage_ContainsRuntimeDataAndApiDocumentation(packagePath));
         Run(nameof(ReleasePackage_DefaultCharacterDataIsReadable), () => this.ReleasePackage_DefaultCharacterDataIsReadable(packagePath));
+        Run(nameof(ReleasePackage_ContentPackExampleIsReadable), () => this.ReleasePackage_ContentPackExampleIsReadable(packagePath));
         Run(nameof(ReleasePackage_DoesNotLoadExampleAsRuntimeData), () => this.ReleasePackage_DoesNotLoadExampleAsRuntimeData(packagePath));
     }
 
@@ -63,5 +67,24 @@ internal sealed class ReleasePackageTests
             archive.GetEntry("PartOfTheCommunity/Data/example_character_pack.json") == null,
             "The example character pack must stay under docs so CharacterManager doesn't load it as live data."
         );
+    }
+
+    private void ReleasePackage_ContentPackExampleIsReadable(string packagePath)
+    {
+        using ZipArchive archive = ZipFile.OpenRead(packagePath);
+        ZipArchiveEntry contentEntry = archive.GetEntry("PartOfTheCommunity/docs/content-pack-example/content.json")
+            ?? throw new InvalidOperationException("Release package has no JSON content-pack example.");
+        using StreamReader contentReader = new(contentEntry.Open());
+        CharacterPackFlat? pack = JsonConvert.DeserializeObject<CharacterPackFlat>(contentReader.ReadToEnd());
+
+        Assert.True(pack?.Characters.Count > 0, "Packaged content-pack example should deserialize into at least one character.");
+
+        ZipArchiveEntry manifestEntry = archive.GetEntry("PartOfTheCommunity/docs/content-pack-example/manifest.json")
+            ?? throw new InvalidOperationException("Release package has no content-pack example manifest.");
+        using StreamReader manifestReader = new(manifestEntry.Open());
+        JObject manifest = JObject.Parse(manifestReader.ReadToEnd());
+
+        Assert.Equal("SpaceBaby.PartOfTheCommunity", manifest["ContentPackFor"]?["UniqueID"]?.Value<string>(), "The example manifest should target PotC.");
+        Assert.Equal("1.4.0", manifest["ContentPackFor"]?["MinimumVersion"]?.Value<string>(), "The example manifest should require the first PotC version with content-pack support.");
     }
 }

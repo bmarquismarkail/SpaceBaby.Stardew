@@ -30,6 +30,9 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships), FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships);
         Run(nameof(FlatCharacterPack_LoadsConditionalUnlockMetadata), FlatCharacterPack_LoadsConditionalUnlockMetadata);
         Run(nameof(CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax), CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax);
+        Run(nameof(OwnedContentPacks_LoadCharactersAndRelationships), OwnedContentPacks_LoadCharactersAndRelationships);
+        Run(nameof(OwnedContentPacks_ResolveCrossPackRelationshipsAfterGlobalRegistration), OwnedContentPacks_ResolveCrossPackRelationshipsAfterGlobalRegistration);
+        Run(nameof(OwnedContentPacks_IsolateMalformedPacks), OwnedContentPacks_IsolateMalformedPacks);
     }
 
     private static void Run(string name, Action test)
@@ -312,7 +315,7 @@ internal sealed class MultiplayerFriendshipAwardTests
                     Gender = "F",
                     Relationships = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
-                        ["sebastian"] = "son"
+                        ["sebastian"] = "mother"
                     },
                     Friends = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -336,8 +339,8 @@ internal sealed class MultiplayerFriendshipAwardTests
 
         var characters = ((IPartOfTheCommunityApi)manager).GetAllCharacters();
 
-        Assert.True(characters["Robin"].Relationships.Any(p => p.Character.Name == "Sebastian" && p.Relationship == Relationship.Son), "Flat-pack relationships should preserve the declared relationship on the source character.");
-        Assert.True(characters["Sebastian"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Mother), "Flat-pack relationships should add the inferred inverse relationship on the target character.");
+        Assert.True(characters["Robin"].Relationships.Any(p => p.Character.Name == "Sebastian" && p.Relationship == Relationship.Mother), "Flat-pack relationships should preserve the declared relationship on the source character.");
+        Assert.True(characters["Sebastian"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Son), "Flat-pack relationships should infer the reciprocal role using the target character's gender.");
         Assert.True(characters["Robin"].Relationships.Any(p => p.Character.Name == "Maru" && p.Relationship == Relationship.Friend), "Flat-pack friends should preserve the declared friendship on the source character.");
         Assert.True(characters["Maru"].Relationships.Any(p => p.Character.Name == "Robin" && p.Relationship == Relationship.Friend), "Flat-pack friends should also add the inverse friendship on the target character.");
     }
@@ -439,6 +442,132 @@ internal sealed class MultiplayerFriendshipAwardTests
         Assert.True(objectPack.Characters["example"].Friends.ContainsKey("sam"), "The original object syntax should keep working for friend entries.");
         Assert.True(arrayPack.Characters["example"].Friends.ContainsKey("sam"), "The new array syntax should deserialize friend names into the same dictionary.");
         Assert.True(arrayPack.Characters["example"].Friends["sebastian"], "Array-style friend entries should map to a true flag internally.");
+    }
+
+    private void OwnedContentPacks_LoadCharactersAndRelationships()
+    {
+        CharacterManager manager = (CharacterManager)CreateCharacterManager().Manager;
+        FakeContentPack pack = new("Example.Relationships", """
+        {
+          "characters": {
+            "mira": {
+              "displayName": "Mira",
+              "gender": "F",
+              "relationships": { "kai": "mother" },
+              "friends": []
+            },
+            "kai": {
+              "displayName": "Kai",
+              "gender": "M",
+              "relationships": {},
+              "friends": {}
+            }
+          }
+        }
+        """);
+
+        manager.LoadOwnedContentPacks(new[] { pack });
+
+        IReadOnlyDictionary<string, CharacterInfo> characters = manager.GetAllCharacters();
+        Assert.True(characters.ContainsKey("Mira"), "An owned PotC content pack should register its characters.");
+        Assert.True(characters["Mira"].Relationships.Any(p => p.Character.Name == "Kai" && p.Relationship == Relationship.Mother), "The content pack should add its declared relationship.");
+        Assert.True(characters["Kai"].Relationships.Any(p => p.Character.Name == "Mira" && p.Relationship == Relationship.Son), "The content pack should add the inferred reciprocal relationship.");
+    }
+
+    private void OwnedContentPacks_ResolveCrossPackRelationshipsAfterGlobalRegistration()
+    {
+        CharacterManager manager = (CharacterManager)CreateCharacterManager().Manager;
+        FakeContentPack relationshipPack = new("Example.Mira", """
+        {
+          "characters": {
+            "mira": {
+              "displayName": "Mira",
+              "gender": "F",
+              "relationships": { "Kai": "mother" }
+            }
+          }
+        }
+        """);
+        FakeContentPack targetPack = new("Example.Kai", """
+        {
+          "characters": {
+            "local-key-only": {
+              "displayName": "Kai",
+              "gender": "M"
+            }
+          }
+        }
+        """);
+
+        manager.LoadOwnedContentPacks(new[] { relationshipPack, targetPack });
+
+        IReadOnlyDictionary<string, CharacterInfo> characters = manager.GetAllCharacters();
+        Assert.True(characters["Mira"].Relationships.Any(p => p.Character.Name == "Kai" && p.Relationship == Relationship.Mother), "A relationship should resolve a later content pack's display name regardless of pack order.");
+        Assert.True(characters["Kai"].Relationships.Any(p => p.Character.Name == "Mira" && p.Relationship == Relationship.Son), "A cross-pack relationship should also be reciprocal.");
+    }
+
+    private void OwnedContentPacks_IsolateMalformedPacks()
+    {
+        CharacterManager manager = (CharacterManager)CreateCharacterManager().Manager;
+        FakeContentPack malformedPack = new("Example.Malformed", contentJson: null, throwOnRead: true);
+        FakeContentPack validPack = new("Example.Valid", """
+        {
+          "characters": {
+            "valid": {
+              "displayName": "ValidCharacter",
+              "gender": "F"
+            }
+          }
+        }
+        """);
+
+        manager.LoadOwnedContentPacks(new[] { malformedPack, validPack });
+
+        Assert.True(manager.IsCharacterRegistered("ValidCharacter"), "A malformed content pack must not prevent later valid packs from loading.");
+    }
+
+    private sealed class FakeContentPack : IContentPack
+    {
+        private readonly string? ContentJson;
+        private readonly bool ThrowOnRead;
+
+        public FakeContentPack(string directoryPath, string? contentJson, bool throwOnRead = false)
+        {
+            this.DirectoryPath = directoryPath;
+            this.ContentJson = contentJson;
+            this.ThrowOnRead = throwOnRead;
+        }
+
+        public string DirectoryPath { get; }
+
+        public IManifest Manifest => null!;
+
+        public ITranslationHelper Translation => null!;
+
+        public IModContentHelper ModContent => null!;
+
+        public bool HasFile(string path)
+        {
+            return string.Equals(path, "content.json", StringComparison.OrdinalIgnoreCase)
+                && (this.ContentJson != null || this.ThrowOnRead);
+        }
+
+        public TModel? ReadJsonFile<TModel>(string path)
+            where TModel : class
+        {
+            if (this.ThrowOnRead)
+                throw new JsonException("Malformed content pack fixture.");
+
+            return this.ContentJson == null
+                ? null
+                : JsonConvert.DeserializeObject<TModel>(this.ContentJson);
+        }
+
+        public void WriteJsonFile<TModel>(string path, TModel data)
+            where TModel : class
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class TestMonitor : IMonitor

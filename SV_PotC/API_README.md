@@ -221,7 +221,32 @@ public class MyMod : Mod
 
 ## Loading Characters from JSON
 
-You can create character packs using JSON files. Place them in the `Data` folder of the Part of the Community mod:
+The recommended JSON integration is a standard SMAPI content pack. Create a separate mod folder containing these two files:
+
+```text
+My PotC Relationship Pack/
+├── manifest.json
+└── content.json
+```
+
+Point `manifest.json` at Part of the Community:
+
+```json
+{
+  "Name": "My PotC Relationship Pack",
+  "Author": "Your Name",
+  "Version": "1.0.0",
+  "Description": "Adds characters and relationships to Part of the Community.",
+  "UniqueID": "YourName.MyPotCRelationshipPack",
+  "ContentPackFor": {
+    "UniqueID": "SpaceBaby.PartOfTheCommunity",
+    "MinimumVersion": "1.4.0"
+  },
+  "UpdateKeys": []
+}
+```
+
+Then put the character graph in the root `content.json`:
 
 ```json
 {
@@ -232,10 +257,10 @@ You can create character packs using JSON files. Place them in the `Data` folder
       "type": "Villager",
       "unlockCondition": "YEAR 2",
       "relationships": {
-        "sam": "brother"
+        "anothercharacter": "brother"
       },
       "relationshipConditions": {
-        "sam": "PLAYER_HAS_MET Current Sam"
+        "anothercharacter": "PLAYER_HAS_MET Current AnotherCharacter"
       },
       "friends": {
         "sebastian": true
@@ -267,27 +292,35 @@ You can create character packs using JSON files. Place them in the `Data` folder
 - **gender**: `"M"` for male, `"F"` for female.
 - **type**: Character type (`"Villager"`, `"Player"`, or `"Child"`).
 - **unlockCondition** *(optional)*: A Stardew 1.6 Game State Query that must match before this character can receive PotC friendship bonuses at all.
-- **relationships**: Object where keys are other character keys or names and values are relationship types (lowercase). In the flat JSON format, PotC adds the declared relationship on the source character **and** automatically adds the inferred inverse relationship on the referenced character.
+- **relationships**: Object where keys are other character keys or display names and values are relationship types (lowercase). The value describes the current character's role relative to the referenced character. PotC adds the declared relationship on the current character **and** automatically adds the inferred reciprocal relationship on the referenced character.
 - **relationshipConditions** *(optional)*: Object keyed by relationship target name. Each value is a Stardew 1.6 Game State Query that gates that specific relationship bonus link.
 - **friends**: By default, this is an object where keys are other character keys or names and values are `true`. For convenience, PotC also accepts a simple array of names like `"friends": ["sam", "sebastian"]`. The original object form remains the canonical documented format and is still fully supported. In the flat JSON format, setting `"other": true` or listing `"other"` in the array adds a friend link from the current character to `other` and automatically adds the inverse friend entry on `other` too.
 - **friendConditions** *(optional)*: Object keyed by friend name. Each value is a Stardew 1.6 Game State Query that gates that specific friendship bonus link.
 
-> The flat JSON format shown above is the recommended format for new integrations. Legacy packs are still supported for backwards compatibility.
+> A complete, copyable pack is included in the PotC release under `docs/content-pack-example`. The old behavior of placing JSON directly in PotC's own `Data` folder remains supported for backwards compatibility, but separately distributed integrations should use a SMAPI content pack so installs and updates don't modify PotC's files.
 >
-> **Reciprocal relationship note:** PotC uses the **source character's gender** to infer the inverse relationship. For example:
+> **Reciprocal relationship note:** PotC uses the **referenced character's gender** to infer their role back to the declaring character. For example:
 >
 > ```json
-> "alice": {
->   "displayName": "Alice",
+> "robin": {
+>   "displayName": "Robin",
 >   "gender": "F",
 >   "relationships": {
->     "bob": "brother"
+>     "sebastian": "mother"
 >   },
->   "friends": ["carol"]
+>   "friends": ["demetrius"]
+> },
+> "sebastian": {
+>   "displayName": "Sebastian",
+>   "gender": "M"
 > }
 > ```
 >
-> This stores **Alice -> Bob = brother** and **Bob -> Alice = sister** because Alice (the source character) is female. If Alice's gender were `"M"`, the inverse would be **Bob -> Alice = brother** instead. For friends, either `"other": true` or the array shorthand like `"friends": ["carol"]` creates mutual `Friend` entries on both characters automatically. If you also define the inverse explicitly, PotC safely ignores the duplicate.
+> This stores **Robin -> Sebastian = mother** and infers **Sebastian -> Robin = son** because Sebastian (the referenced character) is male. For friends, either `"other": true` or the array shorthand like `"friends": ["demetrius"]` creates mutual `Friend` entries on both characters automatically. You only need to declare each relationship or friendship once; an identical explicit reciprocal is safely ignored.
+
+PotC reads all owned content packs in two global passes: it registers every character first, then resolves relationships and friendships. This lets one content pack reference a character supplied by another pack regardless of SMAPI's pack order. Within the same pack, a link can use a character key or display name. Across packs, use the other character's registered `displayName`, since pack-local keys aren't global IDs. A missing or malformed pack is logged and skipped without preventing other packs from loading.
+
+To add links to an existing PotC character, include an entry whose `displayName` matches that character and put the new links on it. PotC reuses the existing registration instead of replacing it; `gender`, `type`, and `unlockCondition` are primarily character-definition fields. Relationship values still describe that existing character's role relative to each target.
 
 ### Late-game lockout example
 
@@ -326,7 +359,7 @@ Use these lowercase strings in the JSON relationships:
 
 - Characters must be registered before adding relationships.
 - Character names are matched case-insensitively by the API.
-- Flat-pack relationship and friend keys can reference characters from the same pack, default PotC data, or previously registered characters by key or display name.
+- Flat-pack relationship and friend keys can reference characters from the same pack by key or display name, and default or other-pack characters by display name.
 - `TryAddRelationship` and `TryAddFriendship` are bidirectional API calls that return `false` when the input is invalid or already present. The flat JSON `relationships` and `friends` objects are also mirrored automatically using the inferred inverse relationship.
 - When the player marries a character, PotC also derives spouse, in-law, and step-family relationships at runtime from that spouse's known family data.
 - The convenience `AddRelationship`, `AddFriendship`, and `RegisterCharacter` methods still log invalid operations for backwards compatibility.

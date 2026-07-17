@@ -146,26 +146,35 @@
         /// <returns>The inverse relationship from target to source.</returns>
         public static Relationship GetInverse(this Relationship relationship, bool sourceIsMale)
         {
+            return relationship.GetReciprocal(sourceIsMale);
+        }
+
+        /// <summary>Get the reciprocal relationship from the other character back to the character declaring this relationship.</summary>
+        /// <param name="relationship">The declaring character's relationship to the other character.</param>
+        /// <param name="otherCharacterIsMale">Whether the other character, whose reciprocal relationship is returned, is male.</param>
+        /// <returns>The other character's relationship back to the declaring character.</returns>
+        public static Relationship GetReciprocal(this Relationship relationship, bool otherCharacterIsMale)
+        {
             return relationship switch
             {
-                Relationship.Brother or Relationship.Sister => sourceIsMale ? Relationship.Brother : Relationship.Sister,
-                Relationship.HalfBrother or Relationship.HalfSister => sourceIsMale ? Relationship.HalfBrother : Relationship.HalfSister,
-                Relationship.Son or Relationship.Daughter => sourceIsMale ? Relationship.Father : Relationship.Mother,
-                Relationship.StepSon or Relationship.StepDaughter => sourceIsMale ? Relationship.StepFather : Relationship.StepMother,
-                Relationship.Father or Relationship.Mother => sourceIsMale ? Relationship.Son : Relationship.Daughter,
-                Relationship.StepFather or Relationship.StepMother => sourceIsMale ? Relationship.StepSon : Relationship.StepDaughter,
-                Relationship.Grandfather or Relationship.Grandmother => sourceIsMale ? Relationship.Grandson : Relationship.Granddaughter,
-                Relationship.GreatGrandfather or Relationship.GreatGrandmother => sourceIsMale ? Relationship.GreatGrandson : Relationship.GreatGranddaughter,
-                Relationship.Grandson or Relationship.Granddaughter => sourceIsMale ? Relationship.Grandfather : Relationship.Grandmother,
-                Relationship.GreatGrandson or Relationship.GreatGranddaughter => sourceIsMale ? Relationship.GreatGrandfather : Relationship.GreatGrandmother,
-                Relationship.Husband or Relationship.Wife => sourceIsMale ? Relationship.Husband : Relationship.Wife,
-                Relationship.FatherInLaw or Relationship.MotherInLaw => sourceIsMale ? Relationship.SonInLaw : Relationship.DaughterInLaw,
-                Relationship.BrotherInLaw or Relationship.SisterInLaw => sourceIsMale ? Relationship.BrotherInLaw : Relationship.SisterInLaw,
-                Relationship.SonInLaw or Relationship.DaughterInLaw => sourceIsMale ? Relationship.FatherInLaw : Relationship.MotherInLaw,
-                Relationship.Aunt or Relationship.Uncle => sourceIsMale ? Relationship.Nephew : Relationship.Niece,
-                Relationship.Nephew or Relationship.Niece => sourceIsMale ? Relationship.Uncle : Relationship.Aunt,
-                Relationship.Godfather or Relationship.Godmother => sourceIsMale ? Relationship.Godson : Relationship.Goddaughter,
-                Relationship.Godson or Relationship.Goddaughter => sourceIsMale ? Relationship.Godfather : Relationship.Godmother,
+                Relationship.Brother or Relationship.Sister => otherCharacterIsMale ? Relationship.Brother : Relationship.Sister,
+                Relationship.HalfBrother or Relationship.HalfSister => otherCharacterIsMale ? Relationship.HalfBrother : Relationship.HalfSister,
+                Relationship.Son or Relationship.Daughter => otherCharacterIsMale ? Relationship.Father : Relationship.Mother,
+                Relationship.StepSon or Relationship.StepDaughter => otherCharacterIsMale ? Relationship.StepFather : Relationship.StepMother,
+                Relationship.Father or Relationship.Mother => otherCharacterIsMale ? Relationship.Son : Relationship.Daughter,
+                Relationship.StepFather or Relationship.StepMother => otherCharacterIsMale ? Relationship.StepSon : Relationship.StepDaughter,
+                Relationship.Grandfather or Relationship.Grandmother => otherCharacterIsMale ? Relationship.Grandson : Relationship.Granddaughter,
+                Relationship.GreatGrandfather or Relationship.GreatGrandmother => otherCharacterIsMale ? Relationship.GreatGrandson : Relationship.GreatGranddaughter,
+                Relationship.Grandson or Relationship.Granddaughter => otherCharacterIsMale ? Relationship.Grandfather : Relationship.Grandmother,
+                Relationship.GreatGrandson or Relationship.GreatGranddaughter => otherCharacterIsMale ? Relationship.GreatGrandfather : Relationship.GreatGrandmother,
+                Relationship.Husband or Relationship.Wife => otherCharacterIsMale ? Relationship.Husband : Relationship.Wife,
+                Relationship.FatherInLaw or Relationship.MotherInLaw => otherCharacterIsMale ? Relationship.SonInLaw : Relationship.DaughterInLaw,
+                Relationship.BrotherInLaw or Relationship.SisterInLaw => otherCharacterIsMale ? Relationship.BrotherInLaw : Relationship.SisterInLaw,
+                Relationship.SonInLaw or Relationship.DaughterInLaw => otherCharacterIsMale ? Relationship.FatherInLaw : Relationship.MotherInLaw,
+                Relationship.Aunt or Relationship.Uncle => otherCharacterIsMale ? Relationship.Nephew : Relationship.Niece,
+                Relationship.Nephew or Relationship.Niece => otherCharacterIsMale ? Relationship.Uncle : Relationship.Aunt,
+                Relationship.Godfather or Relationship.Godmother => otherCharacterIsMale ? Relationship.Godson : Relationship.Goddaughter,
+                Relationship.Godson or Relationship.Goddaughter => otherCharacterIsMale ? Relationship.Godfather : Relationship.Godmother,
                 Relationship.Cousin => Relationship.Cousin,
                 Relationship.Friend => Relationship.Friend,
                 Relationship.WarTorn => Relationship.WarTorn,

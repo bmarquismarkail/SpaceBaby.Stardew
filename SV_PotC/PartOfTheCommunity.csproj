@@ -25,6 +25,7 @@
 
     <!-- Ship integration documentation without loading the example as live character data. -->
     <None Update="Data/example_character_pack.json" CopyToOutputDirectory="PreserveNewest" TargetPath="docs/example_character_pack.json" />
+    <None Update="docs/content-pack-example/**" CopyToOutputDirectory="PreserveNewest" />
     <None Update="API_README.md" CopyToOutputDirectory="PreserveNewest" />
     <None Update="README.md" CopyToOutputDirectory="PreserveNewest" />
     <None Update="LICENSE" CopyToOutputDirectory="PreserveNewest" />
@@ -33,5 +34,7 @@
   <Target Name="ValidatePotcPackageInputs" BeforeTargets="AfterBuild">
     <Error Condition="!Exists('$(TargetDir)Data/default_characters.json')" Text="Required PotC runtime data is missing from the build output: Data/default_characters.json." />
     <Error Condition="!Exists('$(TargetDir)API_README.md')" Text="PotC API documentation is missing from the build output: API_README.md." />
+    <Error Condition="!Exists('$(TargetDir)docs/content-pack-example/manifest.json')" Text="PotC content-pack example manifest is missing from the build output." />
+    <Error Condition="!Exists('$(TargetDir)docs/content-pack-example/content.json')" Text="PotC content-pack example data is missing from the build output." />
   </Target>
 </Project>

@@ -1,0 +1,23 @@
+{
+  "characters": {
+    "mira": {
+      "displayName": "Mira",
+      "gender": "F",
+      "type": "Villager",
+      "relationships": {
+        "kai": "mother"
+      },
+      "friends": [
+        "Abigail"
+      ]
+    },
+    "kai": {
+      "displayName": "Kai",
+      "gender": "M",
+      "type": "Villager",
+      "unlockCondition": "YEAR 2",
+      "relationships": {},
+      "friends": {}
+    }
+  }
+}
