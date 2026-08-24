@@ -1,6 +1,5 @@
 // Nullable annotations need explicit context in this file
 #nullable enable
-using Microsoft.Xna.Framework;
 using StardewValley;
 using StardewValley.Menus;
 using SV_InventorySystem.Framework.Reflection;
@@ -23,11 +22,8 @@ namespace VerticalToolbar.Framework
                 Orientation.LeftOfToolbar,
                 VerticalToolBar.NUM_BUTTONS,
                 inventoryManager,
-                true)
-            {
-                xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2,
-                yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4
-            };
+                true);
+            this.RefreshVerticalToolBarPosition();
         }
 
         public override void performHoverAction(int x, int y)
@@ -152,16 +148,17 @@ namespace VerticalToolbar.Framework
 
         public override void draw(Microsoft.Xna.Framework.Graphics.SpriteBatch b)
         {
-            for (int index = 0; index < VerticalToolBar.NUM_BUTTONS; ++index)
-                verticalToolBar.buttons[index].bounds = new Rectangle(
-                            //TODO: Use more reliable coordinates
-                            verticalToolBar.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
-                            verticalToolBar.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
-                            Game1.tileSize,
-                            Game1.tileSize);
+            this.RefreshVerticalToolBarPosition();
             verticalToolBar.draw(b);
             base.draw(b);
             verticalToolBar.drawToolTip(b);
+        }
+
+        private void RefreshVerticalToolBarPosition()
+        {
+            verticalToolBar.xPositionOnScreen = this.xPositionOnScreen - IClickableMenu.spaceToClearSideBorder - IClickableMenu.borderWidth * 2;
+            verticalToolBar.yPositionOnScreen = this.yPositionOnScreen + IClickableMenu.spaceToClearTopBorder - IClickableMenu.borderWidth / 2 + 4;
+            verticalToolBar.RefreshButtonBounds();
         }
     }
 }

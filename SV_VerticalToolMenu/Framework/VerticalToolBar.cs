@@ -123,8 +123,11 @@ namespace VerticalToolbar.Framework
             }
             dimensionRectangle.X = Math.Clamp(dimensionRectangle.X, 0, Math.Max(0, viewportWidth - dimensionRectangle.Width));
             dimensionRectangle.Y = Math.Clamp(dimensionRectangle.Y, 0, Math.Max(0, viewportHeight - dimensionRectangle.Height));
-            this.xPositionOnScreen = dimensionRectangle.X;
-            this.yPositionOnScreen = dimensionRectangle.Y;
+            if (!this.forceDraw)
+            {
+                this.xPositionOnScreen = dimensionRectangle.X;
+                this.yPositionOnScreen = dimensionRectangle.Y;
+            }
             this.width = dimensionRectangle.Width;
             this.height = dimensionRectangle.Height;
             this.lastUiViewportWidth = viewportWidth;
@@ -143,6 +146,11 @@ namespace VerticalToolbar.Framework
                     Game1.tileSize,
                     Game1.tileSize);
             }
+        }
+
+        public void RefreshButtonBounds()
+        {
+            this.UpdateButtonBounds();
         }
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
