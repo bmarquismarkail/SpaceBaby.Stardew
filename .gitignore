@@ -32,3 +32,5 @@ secrets.txt
 
 # Logs
 *.logs
+
+node_modules/
