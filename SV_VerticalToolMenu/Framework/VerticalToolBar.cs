@@ -35,6 +35,9 @@ namespace VerticalToolbar.Framework
         private int baseMaxItems = Game1.player.MaxItems;
         private IMultiInventoryManager? _inventoryManager;
         private ToolbarConfig toolbarConfig = new ToolbarConfig();
+        private int lastUiViewportWidth;
+        private int lastUiViewportHeight;
+        private bool lastShowingHealth;
 
         public VerticalToolBar(Orientation o, int numButtons = 5, IMultiInventoryManager? inventoryManager = null, bool forceDraw = false)
             : base()
@@ -92,36 +95,56 @@ namespace VerticalToolbar.Framework
         public void getDimensions()
         {
             Rectangle dimensionRectangle;
+            int viewportWidth = Game1.uiViewport.Width;
+            int viewportHeight = Game1.uiViewport.Height;
             dimensionRectangle.Width = Game1.tileSize * 3 / 2;
             dimensionRectangle.Height = Game1.tileSize * NUM_BUTTONS + (Game1.tileSize / 2);
 
             switch (orientation)
             {
                 case Orientation.LeftOfToolbar:
-                    dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) - (getInitialWidth() / 2);
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
+                    dimensionRectangle.X = (viewportWidth / 2 - 384 - 64) - (getInitialWidth() / 2);
+                    dimensionRectangle.Y = viewportHeight - getInitialHeight();
                     break;
                 case Orientation.RightOfToolbar:
-                    dimensionRectangle.X = (Game1.viewport.Width / 2 - 384 - 64) + (getToolbar()?.width ?? 0) - (getInitialWidth() / 2);
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
+                    dimensionRectangle.X = (viewportWidth / 2 - 384 - 64) + (getToolbar()?.width ?? 0) - (getInitialWidth() / 2);
+                    dimensionRectangle.Y = viewportHeight - getInitialHeight();
                     break;
                 case Orientation.BottomLeft:
                     dimensionRectangle.X = IClickableMenu.spaceToClearSideBorder;
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
+                    dimensionRectangle.Y = viewportHeight - getInitialHeight();
                     break;
                 case Orientation.BottomRight:
-                    dimensionRectangle.X = Game1.viewport.Width - (getInitialWidth() / 2) - IClickableMenu.spaceToClearSideBorder - getInitialWidth() - (Game1.showingHealth ? 64 : 0);
-                    dimensionRectangle.Y = Game1.viewport.Height - getInitialHeight();
+                    dimensionRectangle.X = viewportWidth - (getInitialWidth() / 2) - IClickableMenu.spaceToClearSideBorder - getInitialWidth() - (Game1.showingHealth ? 64 : 0);
+                    dimensionRectangle.Y = viewportHeight - getInitialHeight();
                     break;
                 default:
                     throw new NotSupportedException("Error: Orientation Not Supported");
             }
+            dimensionRectangle.X = Math.Clamp(dimensionRectangle.X, 0, Math.Max(0, viewportWidth - dimensionRectangle.Width));
+            dimensionRectangle.Y = Math.Clamp(dimensionRectangle.Y, 0, Math.Max(0, viewportHeight - dimensionRectangle.Height));
             this.xPositionOnScreen = dimensionRectangle.X;
             this.yPositionOnScreen = dimensionRectangle.Y;
             this.width = dimensionRectangle.Width;
             this.height = dimensionRectangle.Height;
+            this.lastUiViewportWidth = viewportWidth;
+            this.lastUiViewportHeight = viewportHeight;
+            this.lastShowingHealth = Game1.showingHealth;
 
         }
+
+        private void UpdateButtonBounds()
+        {
+            for (int index = 0; index < this.buttons.Count; ++index)
+            {
+                this.buttons[index].bounds = new Rectangle(
+                    this.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
+                    this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
+                    Game1.tileSize,
+                    Game1.tileSize);
+            }
+        }
+
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
             if (Game1.player.UsingTool)
@@ -273,6 +296,14 @@ namespace VerticalToolbar.Framework
 
         public override void update(GameTime time)
         {
+            if (this.lastUiViewportWidth != Game1.uiViewport.Width
+                || this.lastUiViewportHeight != Game1.uiViewport.Height
+                || this.lastShowingHealth != Game1.showingHealth)
+            {
+                this.getDimensions();
+                this.UpdateButtonBounds();
+            }
+
             if (baseMaxItems != Game1.player.MaxItems)
             {
                 var newInventory = Game1.player.MaxItems;
@@ -310,13 +341,7 @@ namespace VerticalToolbar.Framework
         public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
         {
             getDimensions();
-            for (int index = 0; index < NUM_BUTTONS; ++index)
-                buttons[index].bounds = new Rectangle(
-                            //TODO: Use more reliable coordinates
-                            this.xPositionOnScreen + IClickableMenu.spaceToClearSideBorder,
-                            this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize),
-                            Game1.tileSize,
-                            Game1.tileSize);
+            this.UpdateButtonBounds();
         }
 
         public override bool isWithinBounds(int x, int y)
@@ -340,17 +365,20 @@ namespace VerticalToolbar.Framework
                 int positionOnScreen1 = this.yPositionOnScreen;
                 if (Game1.options.pinToolbarToggle)
                 {
-                    this.yPositionOnScreen = Game1.viewport.Height - getInitialHeight();
+                    this.yPositionOnScreen = Game1.uiViewport.Height - getInitialHeight();
                     this.transparency = Math.Min(1f, this.transparency + 0.075f);
                     if (Game1.GlobalToLocal(Game1.viewport, new Vector2(Game1.player.GetBoundingBox().Center.X, Game1.player.GetBoundingBox().Center.Y)).Y > (double)(Game1.viewport.Height - Game1.tileSize * 3))
                         this.transparency = Math.Max(0.33f, this.transparency - 0.15f);
                 }
 
                 else if (!(orientation == Orientation.BottomLeft || orientation == Orientation.BottomRight))
-                    this.yPositionOnScreen = (double)Game1.GlobalToLocal(Game1.viewport, new Vector2(Game1.player.GetBoundingBox().Center.X, Game1.player.GetBoundingBox().Center.Y)).Y > (double)(Game1.viewport.Height / 2 + Game1.tileSize) ? Game1.tileSize / 8 : Game1.viewport.Height - getInitialHeight() - Game1.tileSize / 8;
+                    this.yPositionOnScreen = (double)Game1.GlobalToLocal(Game1.viewport, new Vector2(Game1.player.GetBoundingBox().Center.X, Game1.player.GetBoundingBox().Center.Y)).Y > (double)(Game1.viewport.Height / 2 + Game1.tileSize) ? Game1.tileSize / 8 : Game1.uiViewport.Height - getInitialHeight() - Game1.tileSize / 8;
+
+                this.yPositionOnScreen = Math.Clamp(this.yPositionOnScreen, 0, Math.Max(0, Game1.uiViewport.Height - this.height));
                 if (orientation == Orientation.BottomRight && Game1.showingHealth)
                 {
-                    int newXPos = Game1.viewport.Width - (getInitialWidth() / 2) - IClickableMenu.spaceToClearSideBorder - getInitialWidth() - 64;
+                    int newXPos = Game1.uiViewport.Width - (getInitialWidth() / 2) - IClickableMenu.spaceToClearSideBorder - getInitialWidth() - 64;
+                    newXPos = Math.Clamp(newXPos, 0, Math.Max(0, Game1.uiViewport.Width - this.width));
                     xPositionOnScreen = newXPos;
                     foreach (ClickableComponent button in this.buttons)
                     {
