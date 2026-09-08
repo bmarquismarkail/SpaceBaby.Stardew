@@ -19,13 +19,15 @@ namespace SpaceBaby.BuildersList
         public bool recipeListNeedsUpdate;
         private ClickableComponent button;
         private Rectangle initialPosition;
+        private readonly int bottomOffset;
 
         public ScavengerMenu(
         Item lastScavengerItem,
-        StardewModdingAPI.IReflectionHelper reflection)
+        StardewModdingAPI.IReflectionHelper reflection, int bottomOffset = 96)
       : base(IClickableMenu.spaceToClearSideBorder, Game1.viewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder, Game1.tileSize, Game1.tileSize, false)
         {
             this.Reflection = reflection;
+            this.bottomOffset = Math.Max(0, bottomOffset);
             initialPosition = new Rectangle(this.xPositionOnScreen, this.yPositionOnScreen, this.width, this.height);
             if (ScavengerRecipe == null)
                 button = new ClickableComponent(initialPosition, "");
@@ -42,7 +44,7 @@ namespace SpaceBaby.BuildersList
         public void getDimensions()
         {
             initialPosition.X = IClickableMenu.spaceToClearSideBorder;
-            initialPosition.Y = Game1.viewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder;
+            initialPosition.Y = Game1.uiViewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder - this.bottomOffset;
 
             if (ScavengerRecipe == null)
             {
@@ -62,6 +64,7 @@ namespace SpaceBaby.BuildersList
                 this.xPositionOnScreen = initialPosition.X;
                 this.yPositionOnScreen = initialPosition.Y - this.height;
             }
+            this.yPositionOnScreen = Math.Clamp(this.yPositionOnScreen, 0, Math.Max(0, Game1.uiViewport.Height - this.height));
         }
         //Draws a box to put the item in the scavenger menu if none is already there, else draws the recipe text.
         public override void draw(SpriteBatch b)

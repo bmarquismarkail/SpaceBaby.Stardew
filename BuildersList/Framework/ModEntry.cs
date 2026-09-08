@@ -18,7 +18,6 @@ namespace SpaceBaby.BuildersList
         public override void Entry(IModHelper helper)
         {
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
-            helper.Events.Display.RenderedHud += OnrenderedHUD;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnToTitle;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
             isReady = true;
@@ -77,8 +76,8 @@ namespace SpaceBaby.BuildersList
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
-            scavengermenu = new ScavengerMenu(null, this.Helper.Reflection);
             this.config = this.Helper.ReadConfig<ModConfig>();
+            scavengermenu = new ScavengerMenu(null, this.Helper.Reflection, this.config.BottomOffset);
             isHidden = !this.config.isActive;
             if (this.config.currentRecipe != null)
             { 
@@ -90,10 +89,5 @@ namespace SpaceBaby.BuildersList
             isReady = true;
         }
 
-        private void OnrenderedHUD(object sender, RenderedHudEventArgs e)
-        {
-            if (!isReady)
-                return;
-        }
     }
 }
