@@ -25,7 +25,6 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
             HasEnteredEvent = false;
             HasEnteredFestival = false;
             HasProcessedWeddingOrBirth = false;
-            HasTrackedDailyQuest = false;
             NearbyTalksSeen.Clear();
             WitnessCount.Clear();
             HasTalked = false;

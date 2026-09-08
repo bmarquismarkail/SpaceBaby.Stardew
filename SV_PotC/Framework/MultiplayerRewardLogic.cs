@@ -6,6 +6,27 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
     /// <summary>Contains pure decision logic for multiplayer friendship rewards.</summary>
     public static class MultiplayerRewardLogic
     {
+        internal static int GetBundleBonus(int bundleCount, ModConfig config) => bundleCount * config.UjimaBonusStore;
+        public static int ClaimPersistentQuestBonus(PlayerData data, int day, int baseBonus)
+        {
+            if (data.LastDailyQuestDay is not int completedDay || data.LastDailyQuestRewardDay == day)
+                return 0;
+            int age = day - completedDay;
+            if (age < 0 || age >= 3)
+                return 0;
+            data.LastDailyQuestRewardDay = day;
+            return baseBonus / (1 << age);
+        }
+
+        public static bool ClaimFamilyEvent(PlayerData data, int day, bool marriedToday, int childCount)
+        {
+            bool birth = data.KnownChildCount.HasValue && childCount > data.KnownChildCount.Value;
+            data.KnownChildCount = childCount;
+            bool wedding = marriedToday && data.LastWeddingRewardDay != day;
+            if (wedding)
+                data.LastWeddingRewardDay = day;
+            return birth || wedding;
+        }
         public static bool TryClaimShopBonus(long localPlayerId, long evaluatedFarmerId, string currentLocationName, bool hasOpenShopMenu, bool hasHeldItem, IReadOnlyDictionary<string, string> shops, FarmerSession session, out string shopOwnerName)
         {
             shopOwnerName = null;

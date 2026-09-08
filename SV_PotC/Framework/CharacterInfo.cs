@@ -32,6 +32,8 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         /// <summary>Whether the NPC owns a shop.</summary>
         public bool IsShopOwner { get; internal set; }
 
+        internal long? OwnerFarmerId { get; set; }
+
         /// <summary>The NPC's known relationships with other characters.</summary>
         public IReadOnlyList<CharacterRelationship> Relationships => this.relationships.AsReadOnly();
 
@@ -111,11 +113,14 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
                     return npc != null;
 
                 case CharacterType.Player:
-                    npc = this.Name == Game1.player.Name ? Game1.player : null;
+                    npc = Game1.getAllFarmers().FirstOrDefault(p => p.UniqueMultiplayerID == this.OwnerFarmerId);
                     return npc != null;
 
                 case CharacterType.Child:
-                    npc = Game1.player.getChildren().FirstOrDefault(p => p.Name == this.Name);
+                    Farmer owner = this.OwnerFarmerId.HasValue
+                        ? Game1.getAllFarmers().FirstOrDefault(p => p.UniqueMultiplayerID == this.OwnerFarmerId)
+                        : Game1.player;
+                    npc = owner?.getChildren().FirstOrDefault(p => p.Name == this.Name);
                     return npc != null;
 
                 default:

@@ -36,6 +36,7 @@ namespace SpaceBaby.PartOfTheCommunity
 
         /// <summary>Metadata for NPCs tracked by the mod.</summary>
         private IDictionary<string, CharacterInfo> Characters;
+        private readonly Dictionary<long, IDictionary<string, CharacterInfo>> FarmerCharacters = new();
         
         /// <summary>The character manager for loading and managing character relationships.</summary>
         private CharacterManager CharacterManager;
@@ -193,7 +194,8 @@ namespace SpaceBaby.PartOfTheCommunity
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
             // refresh data
-            this.Characters = this.GetCharacters();
+            this.FarmerCharacters.Clear();
+            this.Characters = this.GetFarmerCharacters(Game1.player);
             this.CurrentNumberOfCompletedBundles = ((CommunityCenter)Game1.getLocationFromName("CommunityCenter")).numberOfCompleteBundles();
             this.CurrentNumberOfCompletedDailyQuests = Game1.stats.QuestsCompleted;
             
@@ -234,7 +236,8 @@ namespace SpaceBaby.PartOfTheCommunity
                     // add initial community center bonus
                     if (!farmerData.HasGottenInitialUjimaBonus)
                     {
-                        int bonusPoints = this.Config.UjimaBonus * this.CurrentNumberOfCompletedBundles;
+                        this.Characters = this.GetFarmerCharacters(farmer);
+                        int bonusPoints = MultiplayerRewardLogic.GetBundleBonus(this.CurrentNumberOfCompletedBundles, this.Config);
                         foreach (CharacterInfo shopkeeper in this.Characters.Values.Where(p => p.IsShopOwner))
                         {
                             if (shopkeeper.TryGetNpc(out NPC npc))
@@ -266,6 +269,7 @@ namespace SpaceBaby.PartOfTheCommunity
             this.IsReady = false;
             this.PlayerData = null;
             this.Characters = null;
+            this.FarmerCharacters.Clear();
             this.CurrentNumberOfCompletedBundles = 0;
             this.CurrentNumberOfCompletedDailyQuests = 0;
             
@@ -301,6 +305,7 @@ namespace SpaceBaby.PartOfTheCommunity
             foreach (Farmer farmer in Game1.getAllFarmers())
             {
                 // get farmer session and data - ensure both exist
+                this.Characters = this.GetFarmerCharacters(farmer);
                 var session = PlayerSession.GetSession(farmer);
                 var farmerData = this.GetPlayerData(farmer); // This handles lazy initialization
                 
@@ -437,8 +442,13 @@ namespace SpaceBaby.PartOfTheCommunity
                 }
 
                 // check if player is getting married or having a baby
-                if (!string.IsNullOrWhiteSpace(farmer.spouse) && (Game1.weddingToday || Game1.farmEvent is BirthingEvent) && !session.HasProcessedWeddingOrBirth)
+                bool marriedToday = !string.IsNullOrWhiteSpace(farmer.spouse)
+                    && farmer.friendshipData.TryGetValue(farmer.spouse, out Friendship marriage)
+                    && marriage.IsMarried() && marriage.WeddingDate?.TotalDays == Game1.Date.TotalDays;
+                if (MultiplayerRewardLogic.ClaimFamilyEvent(farmerData, Game1.Date.TotalDays, marriedToday, farmer.getChildren().Count)
+                    && !string.IsNullOrWhiteSpace(farmer.spouse))
                 {
+                    this.Characters = this.FarmerCharacters[farmer.UniqueMultiplayerID] = this.GetCharacters(farmer);
                     if (this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse) && spouse != null)
                     {
                         foreach (CharacterRelationship relation in spouse.Relationships.Where(p => p.IsUnlockedFor(farmer)))
@@ -462,17 +472,18 @@ namespace SpaceBaby.PartOfTheCommunity
                 }
 
                 // check if player completed daily quest - track per farmer, not globally
-                uint farmerQuestCount = farmer.stats.QuestsCompleted;
-                uint lastKnownCount = farmerData.LastKnownQuestCount ?? farmerQuestCount; // Use current count if null to prevent false detection
+                uint farmerQuestCount = farmer.stats.Get("BillboardQuestsDone");
+                uint lastKnownCount = farmerData.LastKnownBillboardQuestCount ?? farmerQuestCount;
                 
                 if (farmerQuestCount > lastKnownCount)
                 {
                     session.DaysSinceDailyQuest = 0;
                     session.HasTrackedDailyQuest = true;
+                    farmerData.LastDailyQuestDay = Game1.Date.TotalDays;
                 }
                 
                 // Always update LastKnownQuestCount to keep sessions in sync
-                farmerData.LastKnownQuestCount = farmerQuestCount;
+                farmerData.LastKnownBillboardQuestCount = farmerQuestCount;
             }
         }
 
@@ -483,6 +494,7 @@ namespace SpaceBaby.PartOfTheCommunity
         {
             foreach (Farmer farmer in Game1.getAllFarmers())
             {
+                this.Characters = this.FarmerCharacters[farmer.UniqueMultiplayerID] = this.GetCharacters(farmer);
 
                 // bonus for giving gifts to an NPC's friend/relative
                 var session = PlayerSession.GetSession(farmer);
@@ -505,7 +517,7 @@ namespace SpaceBaby.PartOfTheCommunity
                 }
 
                 // extended family bonus for gifting spouse/child
-                if (!string.IsNullOrWhiteSpace(farmer.spouse) && this.Characters.TryGetValue(farmer.Name, out CharacterInfo player) && this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse))
+                if (!string.IsNullOrWhiteSpace(farmer.spouse) && this.Characters.TryGetValue(GetFarmerCharacterKey(farmer), out CharacterInfo player) && this.Characters.TryGetValue(farmer.spouse, out CharacterInfo spouse))
                 {
                     bool giftedFamily = false;
                     foreach (CharacterRelationship relation in player.Relationships)
@@ -536,7 +548,7 @@ namespace SpaceBaby.PartOfTheCommunity
                 if (this.CurrentNumberOfCompletedBundles < totalBundles)
                 {
                     int newBundles = totalBundles - this.CurrentNumberOfCompletedBundles;
-                    int bonusPoints = this.Config.UjimaBonus * newBundles;
+                    int bonusPoints = MultiplayerRewardLogic.GetBundleBonus(newBundles, this.Config);
                     foreach (CharacterInfo shopkeeper in this.Characters.Values.Where(p => p.IsShopOwner))
                     {
                         if (shopkeeper.TryGetNpc(out NPC shopkeeperNpc))
@@ -546,7 +558,7 @@ namespace SpaceBaby.PartOfTheCommunity
                 }
 
                 // bonus for completed daily quests
-                int dailyQuestBonus = MultiplayerRewardLogic.ClaimDailyQuestBonus(session, GetCurrentDayKey(), this.Config.UjimaBonus);
+                int dailyQuestBonus = MultiplayerRewardLogic.ClaimPersistentQuestBonus(this.GetPlayerData(farmer), Game1.Date.TotalDays, this.Config.UjimaBonus);
                 if (dailyQuestBonus > 0)
                 {
                     Utility.improveFriendshipWithEveryoneInRegion(farmer, dailyQuestBonus, "Town");
@@ -573,10 +585,19 @@ namespace SpaceBaby.PartOfTheCommunity
         }
 
         /// <summary>Get all available characters.</summary>
-        private IDictionary<string, CharacterInfo> GetCharacters()
+        private static string GetFarmerCharacterKey(Farmer farmer) => $"PotC/Farmer/{farmer.UniqueMultiplayerID}";
+
+        private IDictionary<string, CharacterInfo> GetFarmerCharacters(Farmer farmer)
+        {
+            if (!this.FarmerCharacters.TryGetValue(farmer.UniqueMultiplayerID, out var characters))
+                this.FarmerCharacters[farmer.UniqueMultiplayerID] = characters = this.GetCharacters(farmer);
+            return characters;
+        }
+
+        private IDictionary<string, CharacterInfo> GetCharacters(Farmer farmer)
         {
             // Start with characters from the character manager (includes data file characters and API registrations)
-            IDictionary<string, CharacterInfo> characters = this.CharacterManager.GetCharactersDictionary().ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            IDictionary<string, CharacterInfo> characters = this.CharacterManager.CreateRuntimeCharacters();
 
             // mark shopkeepers
             {
@@ -586,16 +607,16 @@ namespace SpaceBaby.PartOfTheCommunity
             }
 
             // add player
-            var player = new CharacterInfo(Game1.player.Name, isMale: Game1.player.IsMale, type: CharacterType.Player);
+            var player = new CharacterInfo(GetFarmerCharacterKey(farmer), isMale: farmer.IsMale, type: CharacterType.Player) { OwnerFarmerId = farmer.UniqueMultiplayerID };
             characters[player.Name] = player;
 
             // add player spouse
             CharacterInfo spouse = null;
-            if (Game1.player.spouse != null)
+            if (farmer.spouse != null && farmer.friendshipData.TryGetValue(farmer.spouse, out Friendship spouseFriendship) && spouseFriendship.IsMarried())
             {
-                if (!characters.TryGetValue(Game1.player.spouse, out spouse))
+                if (!characters.TryGetValue(farmer.spouse, out spouse))
                 {
-                    spouse = new CharacterInfo(Game1.player.spouse, isMale: Utility.isMale(Game1.player.spouse));
+                    spouse = new CharacterInfo(farmer.spouse, isMale: Utility.isMale(farmer.spouse));
                     characters[spouse.Name] = spouse;
                 }
 
@@ -618,10 +639,10 @@ namespace SpaceBaby.PartOfTheCommunity
             }
 
             // add children
-            foreach (Child childNpc in Game1.player.getChildren())
+            foreach (Child childNpc in farmer.getChildren())
             {
                 // add child
-                CharacterInfo child = new CharacterInfo(childNpc.Name, isMale: childNpc.Gender == Gender.Male);
+                CharacterInfo child = new CharacterInfo(childNpc.Name, isMale: childNpc.Gender == Gender.Male, type: CharacterType.Child) { OwnerFarmerId = farmer.UniqueMultiplayerID };
                 characters[child.Name] = child;
 
                 // add relationships
@@ -732,6 +753,8 @@ namespace SpaceBaby.PartOfTheCommunity
             {
                 playerData.LastKnownQuestCount = farmer.stats.QuestsCompleted;
             }
+
+            playerData.LastKnownBillboardQuestCount ??= farmer.stats.Get("BillboardQuestsDone");
 
             return playerData;
         }

@@ -7,7 +7,7 @@ using StardewModdingAPI;
 namespace SpaceBaby.PartOfTheCommunity.Framework
 {
     /// <summary>Manages character loading from both JSON files and API registrations.</summary>
-    internal class CharacterManager : IPartOfTheCommunityApi
+    public class CharacterManager : IPartOfTheCommunityApi
     {
         /*********
         ** Fields
@@ -269,6 +269,18 @@ namespace SpaceBaby.PartOfTheCommunity.Framework
         internal Dictionary<string, CharacterInfo> GetCharactersDictionary()
         {
             return this.Characters;
+        }
+
+        /// <summary>Create an isolated graph for a farmer's generated family relationships.</summary>
+        internal Dictionary<string, CharacterInfo> CreateRuntimeCharacters()
+        {
+            var result = this.Characters.ToDictionary(p => p.Key,
+                p => new CharacterInfo(p.Value.Name, p.Value.IsMale, p.Value.Type, p.Value.UnlockCondition),
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in this.Characters)
+                foreach (var relation in pair.Value.Relationships)
+                    result[pair.Key].AddRelationship(relation.Relationship, result[relation.Character.Name], relation.UnlockCondition);
+            return result;
         }
 
 
