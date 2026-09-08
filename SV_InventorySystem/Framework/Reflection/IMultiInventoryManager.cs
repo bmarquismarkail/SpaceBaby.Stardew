@@ -39,6 +39,15 @@ public interface IMultiInventoryManager
     bool AddItemAtIndex(Farmer farmer, Item item, int index);
 
     /// <summary>
+    /// Adds an item at a global inventory index using Stardew Valley's stacking and replacement semantics.
+    /// </summary>
+    /// <param name="farmer">The farmer receiving the item.</param>
+    /// <param name="item">The item to add.</param>
+    /// <param name="index">The global inventory index.</param>
+    /// <returns>The displaced item or unstacked remainder, or <c>null</c> if the item was fully added.</returns>
+    Item? AddItemAtIndexWithRemainder(Farmer farmer, Item item, int index);
+
+    /// <summary>
     /// Called when the farmer's CurrentToolIndex changes
     /// </summary>
     /// <param name="farmer">The farmer whose tool index changed</param>
@@ -81,4 +90,13 @@ public interface IMultiInventoryManager
     /// <param name="globalIndex">The global index across all inventories</param>
     /// <returns>Tuple of (inventoryIndex, localIndex) or null if invalid</returns>
     (int inventoryIndex, int localIndex)? TranslateGlobalIndex(Farmer farmer, int globalIndex);
+
+    /// <summary>
+    /// Translates an inventory-local index to the corresponding global item index.
+    /// </summary>
+    /// <param name="farmer">The farmer whose inventories should be inspected.</param>
+    /// <param name="inventoryIndex">The inventory index.</param>
+    /// <param name="localIndex">The slot within that inventory.</param>
+    /// <returns>The global index, or <c>null</c> if either index is invalid.</returns>
+    int? GetGlobalIndex(Farmer farmer, int inventoryIndex, int localIndex);
 }

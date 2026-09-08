@@ -213,7 +213,7 @@ public class SmapiReflectionHelper
                 if (inventoryManager != null)
                 {
                     // Add item to multi-inventory at current tool index
-                    inventoryManager.AddItemAtIndex(farmer, value, farmer.CurrentToolIndex);
+                    inventoryManager.AddItemAtIndexWithRemainder(farmer, value, farmer.CurrentToolIndex);
                 }
                 else
                 {

@@ -24,7 +24,7 @@ namespace VerticalToolbar.Framework
     public class VerticalToolBar : IClickableMenu
     {
         public List<ClickableComponent> buttons = new List<ClickableComponent>();
-        public static int NUM_BUTTONS = 5;
+        public const int DefaultButtonCount = 5;
         public Orientation orientation;
         private string hoverTitle = "";
         private float transparency = 1f;
@@ -34,30 +34,36 @@ namespace VerticalToolbar.Framework
         public bool forceDraw = false;
         private int baseMaxItems = Game1.player.MaxItems;
         private IMultiInventoryManager? _inventoryManager;
-        private ToolbarConfig toolbarConfig = new ToolbarConfig();
+        private readonly int buttonCount;
+        private readonly bool showInventoryIndicator;
+        private int displayedInventoryIndex;
         private int lastUiViewportWidth;
         private int lastUiViewportHeight;
         private bool lastShowingHealth;
 
-        public VerticalToolBar(Orientation o, int numButtons = 5, IMultiInventoryManager? inventoryManager = null, bool forceDraw = false)
+        public VerticalToolBar(Orientation o, int numButtons = DefaultButtonCount, IMultiInventoryManager? inventoryManager = null, bool forceDraw = false, bool showInventoryIndicator = true)
             : base()
         {
             _inventoryManager = inventoryManager;
             orientation = o;
-            NUM_BUTTONS = numButtons;
+            buttonCount = Math.Max(1, numButtons);
             this.forceDraw = forceDraw;
+            this.showInventoryIndicator = showInventoryIndicator;
+            this.displayedInventoryIndex = _inventoryManager == null
+                ? 0
+                : _inventoryManager.GetInventoryCount(Game1.player) > 1 ? 1 : -1;
             getDimensions();
             // For compatibility with Bigger Backpack when not using a multi-inventory manager
             if (_inventoryManager == null)
             {
-                int newInventory = baseMaxItems + VerticalToolBar.NUM_BUTTONS;
+                int newInventory = baseMaxItems + buttonCount;
                 for (int count = Game1.player.Items.Count; count < newInventory; count++)
                 {
                     Game1.player.Items.Add(null);
                 }
             }
 
-            for (int index = 0; index < NUM_BUTTONS; ++index)
+            for (int index = 0; index < buttonCount; ++index)
             {
                 this.buttons.Add(
                     new ClickableComponent(
@@ -68,11 +74,13 @@ namespace VerticalToolbar.Framework
                             Game1.tileSize),
                         string.Concat(index + baseMaxItems)));
             }
+
+            RefreshInventorySlots();
         }
 
         public void DrawInventoryIndicator(SpriteBatch b, int inventoryIndex)
         {
-            if (!toolbarConfig.ShowInventoryIndicator) return;
+            if (!showInventoryIndicator) return;
 
             string text = $"Inv {inventoryIndex + 1}";
             Vector2 textSize = Game1.smallFont.MeasureString(text);
@@ -98,7 +106,7 @@ namespace VerticalToolbar.Framework
             int viewportWidth = Game1.uiViewport.Width;
             int viewportHeight = Game1.uiViewport.Height;
             dimensionRectangle.Width = Game1.tileSize * 3 / 2;
-            dimensionRectangle.Height = Game1.tileSize * NUM_BUTTONS + (Game1.tileSize / 2);
+            dimensionRectangle.Height = Game1.tileSize * buttonCount + (Game1.tileSize / 2);
 
             switch (orientation)
             {
@@ -151,6 +159,61 @@ namespace VerticalToolbar.Framework
         public void RefreshButtonBounds()
         {
             this.UpdateButtonBounds();
+        }
+
+        /// <summary>Remap toolbar buttons to the displayed additional inventory.</summary>
+        public void RefreshInventorySlots()
+        {
+            if (_inventoryManager == null)
+            {
+                for (int i = 0; i < buttons.Count; i++)
+                    buttons[i].name = (baseMaxItems + i).ToString();
+                return;
+            }
+
+            if (this.displayedInventoryIndex < 0)
+            {
+                for (int i = 0; i < buttons.Count; i++)
+                    buttons[i].name = "-1";
+                return;
+            }
+
+            int inventoryCount = _inventoryManager.GetInventoryCount(Game1.player);
+            if (inventoryCount <= 1 && this.displayedInventoryIndex < 1)
+            {
+                this.displayedInventoryIndex = -1;
+                for (int i = 0; i < buttons.Count; i++)
+                    buttons[i].name = "-1";
+                return;
+            }
+
+            this.displayedInventoryIndex = Math.Clamp(Math.Max(1, this.displayedInventoryIndex), 1, inventoryCount - 1);
+            for (int i = 0; i < buttons.Count; i++)
+                buttons[i].name = (_inventoryManager.GetGlobalIndex(Game1.player, this.displayedInventoryIndex, i) ?? -1).ToString();
+        }
+
+        /// <summary>Set which logical inventory is shown in the vertical toolbar.</summary>
+        public void SetDisplayedInventoryIndex(int inventoryIndex)
+        {
+            if (_inventoryManager == null)
+                return;
+
+            if (inventoryIndex < 0 || inventoryIndex >= _inventoryManager.GetInventoryCount(Game1.player))
+                return;
+
+            this.displayedInventoryIndex = inventoryIndex;
+            this.RefreshInventorySlots();
+        }
+
+        public int GetDisplayedInventoryIndex() => this.displayedInventoryIndex;
+
+        /// <summary>Get the global inventory indices currently represented by this toolbar.</summary>
+        public IReadOnlyList<int> GetSlotIndices()
+        {
+            return buttons
+                .Select(button => int.TryParse(button.name, out int index) ? index : -1)
+                .Where(index => index >= 0)
+                .ToArray();
         }
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
@@ -245,8 +308,11 @@ namespace VerticalToolbar.Framework
                 {
                     if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, new[] { new InputButton(Keys.LeftShift) }))
                     {
-                        toAddTo.Stack += (int)Math.Ceiling(slotItem.Stack / 2.0);
-                        slotItem.Stack = slotItem.Stack / 2;
+                        int requested = (int)Math.Ceiling(slotItem.Stack / 2.0);
+                        int availableSpace = toAddTo.maximumStackSize() - toAddTo.Stack;
+                        int amountToMove = Math.Min(requested, availableSpace);
+                        toAddTo.Stack += amountToMove;
+                        slotItem.Stack -= amountToMove;
                     }
                     else
                     {
@@ -318,13 +384,13 @@ namespace VerticalToolbar.Framework
 
                 if (_inventoryManager == null)
                 {
-                    if (Game1.player.Items.Count() < (newInventory + NUM_BUTTONS))
+                    if (Game1.player.Items.Count() < (newInventory + buttonCount))
                     {
-                        for (int i = Game1.player.Items.Count(); i < (newInventory + NUM_BUTTONS); i++)
+                        for (int i = Game1.player.Items.Count(); i < (newInventory + buttonCount); i++)
                             Game1.player.Items.Add(null);
                     }
 
-                    for (int i = 0; i < NUM_BUTTONS; i++)
+                    for (int i = 0; i < buttonCount; i++)
                     {
                         this.buttons[i].name = string.Concat(i + newInventory);
                         Game1.player.Items[newInventory + i] = Game1.player.Items[baseMaxItems + i];
@@ -336,14 +402,14 @@ namespace VerticalToolbar.Framework
                 }
                 else
                 {
-                    for (int i = 0; i < NUM_BUTTONS; i++)
-                    {
-                        this.buttons[i].name = string.Concat(i + newInventory);
-                    }
+                    RefreshInventorySlots();
                 }
 
                 baseMaxItems = newInventory;
             }
+
+            if (_inventoryManager != null)
+                RefreshInventorySlots();
         }
 
         public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
@@ -397,7 +463,7 @@ namespace VerticalToolbar.Framework
                 int positionOnScreen2 = this.yPositionOnScreen;
                 if (positionOnScreen1 != positionOnScreen2)
                 {
-                    for (int index = 0; index < NUM_BUTTONS; ++index)
+                    for (int index = 0; index < buttonCount; ++index)
                         this.buttons[index].bounds.Y = this.yPositionOnScreen + IClickableMenu.spaceToClearSideBorder + (index * Game1.tileSize);
                 }
             }
@@ -405,7 +471,7 @@ namespace VerticalToolbar.Framework
             IClickableMenu.drawTextureBox(b, Game1.menuTexture, this.toolbarTextSource, this.xPositionOnScreen, this.yPositionOnScreen, this.width,
                 this.height, Color.White * this.transparency, 1f, false);
             int toolBarIndex = 0;
-            for (int index = 0; index < NUM_BUTTONS; ++index)
+            for (int index = 0; index < buttonCount; ++index)
             {
                 this.buttons[index].scale = Math.Max(1f, this.buttons[index].scale - 0.025f);
                 Vector2 location = new Vector2(
@@ -432,10 +498,9 @@ namespace VerticalToolbar.Framework
             //draw the tooltip if it's feasible, else allow another method to explicitly draw it
 
             // Show current inventory index overlay (e.g., "Inv 1", "Inv 2")
-            if (_inventoryManager != null)
+            if (_inventoryManager != null && this.displayedInventoryIndex >= 0)
             {
-                int activeInvIndex = _inventoryManager.GetActiveInventoryIndex(Game1.player);
-                DrawInventoryIndicator(b, activeInvIndex);
+                DrawInventoryIndicator(b, this.displayedInventoryIndex);
             }
 
             if (Game1.activeClickableMenu == null)
@@ -458,9 +523,9 @@ namespace VerticalToolbar.Framework
             return (Game1.tileSize * 3 / 2);
         }
 
-        public static int getInitialHeight()
+        public int getInitialHeight()
         {
-            return ((Game1.tileSize * NUM_BUTTONS) + (Game1.tileSize / 2));
+            return ((Game1.tileSize * buttonCount) + (Game1.tileSize / 2));
         }
 
         public override void receiveRightClick(int x, int y, bool playSound = true)

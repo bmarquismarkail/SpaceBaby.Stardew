@@ -14,15 +14,16 @@ namespace VerticalToolbar.Framework
         private readonly VerticalToolBar verticalToolBar;
         private readonly IMultiInventoryManager? _inventoryManager;
 
-        public ModInventoryPage(int x, int y, int width, int height, IMultiInventoryManager? inventoryManager = null)
+        public ModInventoryPage(int x, int y, int width, int height, IMultiInventoryManager? inventoryManager = null, bool showInventoryIndicator = true)
             : base(x, y, width, height)
         {
             _inventoryManager = inventoryManager;
             verticalToolBar = new VerticalToolBar(
                 Orientation.LeftOfToolbar,
-                VerticalToolBar.NUM_BUTTONS,
+                VerticalToolBar.DefaultButtonCount,
                 inventoryManager,
-                true);
+                true,
+                showInventoryIndicator);
             this.RefreshVerticalToolBarPosition();
         }
 
@@ -149,6 +150,7 @@ namespace VerticalToolbar.Framework
         public override void draw(Microsoft.Xna.Framework.Graphics.SpriteBatch b)
         {
             this.RefreshVerticalToolBarPosition();
+            verticalToolBar.RefreshInventorySlots();
             verticalToolBar.draw(b);
             base.draw(b);
             verticalToolBar.drawToolTip(b);
