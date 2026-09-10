@@ -12,6 +12,7 @@ public class FarmerPatches
 {
     private static IMonitor? Monitor;
     private static IMultiInventoryManager? InventoryManager;
+    private static readonly FieldInfo? ItemStowedField = AccessTools.Field(typeof(Farmer), "_itemStowed");
 
     public static void Initialize(IMonitor monitor, IMultiInventoryManager inventoryManager)
     {
@@ -45,14 +46,13 @@ public class FarmerPatches
 
             // 2. Second priority: Check if item is stowed
             // Use safer reflection access
-            var itemStowedField = AccessTools.Field(typeof(Farmer), "_itemStowed");
-            if (itemStowedField == null)
+            if (ItemStowedField == null)
             {
                 Monitor?.Log("Could not find _itemStowed field, falling back to original", LogLevel.Warn);
                 return true;
             }
             
-            var stowedValue = itemStowedField.GetValue(__instance);
+            var stowedValue = ItemStowedField.GetValue(__instance);
             bool isItemStowed = stowedValue is bool b && b;
             if (isItemStowed)
             {
@@ -96,14 +96,13 @@ public class FarmerPatches
             }
 
             // 2. Second priority: Check if item is stowed
-            var itemStowedField = AccessTools.Field(typeof(Farmer), "_itemStowed");
-            if (itemStowedField == null)
+            if (ItemStowedField == null)
             {
                 Monitor?.Log("Could not find _itemStowed field, falling back to original", LogLevel.Warn);
                 return true;
             }
             
-            var stowedValue = itemStowedField.GetValue(__instance);
+            var stowedValue = ItemStowedField.GetValue(__instance);
             bool isItemStowed = stowedValue is bool b && b;
             if (isItemStowed)
             {
@@ -166,7 +165,34 @@ public class FarmerPatches
             else
             {
                 // Add item to multi-inventory at current tool index
-                InventoryManager.AddItemAtIndex(__instance, value, __instance.CurrentToolIndex);
+                Item? remainder = InventoryManager.AddItemAtIndexWithRemainder(__instance, value, __instance.CurrentToolIndex);
+                if (remainder != null)
+                {
+                    for (int index = 0; index < InventoryManager.GetTotalInventorySize(__instance); index++)
+                    {
+                        if (index == __instance.CurrentToolIndex)
+                            continue;
+
+                        var mapping = InventoryManager.TranslateGlobalIndex(__instance, index);
+                        if (mapping == null)
+                            continue;
+
+                        var inventory = InventoryManager.GetInventory(__instance, mapping.Value.inventoryIndex);
+                        if (inventory == null || mapping.Value.localIndex < 0 || mapping.Value.localIndex >= inventory.Count)
+                            continue;
+
+                        Item? existing = inventory[mapping.Value.localIndex];
+                        if (existing != null && !existing.canStackWith(remainder))
+                            continue;
+
+                        remainder = InventoryManager.AddItemAtIndexWithRemainder(__instance, remainder, index);
+                        if (remainder == null)
+                            break;
+                    }
+
+                    if (remainder != null)
+                        Game1.createItemDebris(remainder, __instance.getStandingPosition(), __instance.FacingDirection);
+                }
             }
 
             return false; // Skip original method
@@ -175,6 +201,43 @@ public class FarmerPatches
         {
             Monitor?.Log($"Error in ActiveItem setter patch: {ex.Message}\n{ex.StackTrace}", LogLevel.Error);
             return true; // Fall back to original implementation
+        }
+    }
+
+    /// <summary>
+    /// Prefix for the CurrentTool setter, whose vanilla implementation writes directly to
+    /// <see cref="Farmer.Items"/> and would otherwise expand the base inventory for a global index.
+    /// </summary>
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(Farmer), "CurrentTool", MethodType.Setter)]
+    public static bool CurrentTool_Setter_Prefix(Farmer __instance, Tool? value)
+    {
+        try
+        {
+            if (InventoryManager == null)
+                return true;
+
+            var mapping = InventoryManager.TranslateGlobalIndex(__instance, __instance.CurrentToolIndex);
+            if (mapping == null)
+            {
+                Monitor?.Log($"Ignoring CurrentTool assignment at invalid global index {__instance.CurrentToolIndex}.", LogLevel.Warn);
+                return false;
+            }
+
+            if (mapping.Value.inventoryIndex == 0)
+                return true;
+
+            IList<Item?>? inventory = InventoryManager.GetInventory(__instance, mapping.Value.inventoryIndex);
+            if (inventory == null || mapping.Value.localIndex < 0 || mapping.Value.localIndex >= inventory.Count)
+                return false;
+
+            inventory[mapping.Value.localIndex] = value;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Monitor?.Log($"Error in CurrentTool setter patch: {ex}", LogLevel.Error);
+            return false;
         }
     }
 

@@ -129,36 +129,78 @@ public class MultiInventoryManager : IMultiInventoryManager
 
     public bool AddItemAtIndex(Farmer farmer, Item item, int index)
     {
-        var (inventoryIndex, localIndex) = TranslateGlobalIndex(farmer, index) ?? (0, index);
-        
-        if (inventoryIndex == 0)
-        {
-            // Add to original inventory
-            if (localIndex >= farmer.Items.Count)
-                return false;
-            farmer.Items[localIndex] = item;
-            return true;
-        }
-        
-        var inventory = GetInventory(farmer, inventoryIndex);
-        if (inventory == null || localIndex >= inventory.Count)
+        var mapping = TranslateGlobalIndex(farmer, index);
+        if (mapping == null)
             return false;
-            
-        inventory[localIndex] = item;
-        return true;
+
+        IList<Item?>? inventory = GetInventory(farmer, mapping.Value.inventoryIndex);
+        if (inventory == null)
+            return false;
+
+        Item? existing = inventory[mapping.Value.localIndex];
+        if (existing != null && !existing.canStackWith(item))
+            return false;
+
+        return AddItemAtIndexWithRemainder(farmer, item, index) == null;
+    }
+
+    public Item? AddItemAtIndexWithRemainder(Farmer farmer, Item item, int index)
+    {
+        var mapping = TranslateGlobalIndex(farmer, index);
+        if (mapping == null)
+            return item;
+
+        int inventoryIndex = mapping.Value.inventoryIndex;
+        int localIndex = mapping.Value.localIndex;
+        if (inventoryIndex == 0)
+            return farmer.addItemToInventory(item, localIndex);
+
+        IList<Item?>? inventory = GetInventory(farmer, inventoryIndex);
+        if (inventory == null || localIndex < 0 || localIndex >= inventory.Count)
+            return item;
+
+        farmer.GetItemReceiveBehavior(item, out bool needsInventorySpace, out _);
+        if (!needsInventorySpace)
+        {
+            farmer.OnItemReceived(item, item.Stack, null);
+            return null;
+        }
+
+        Item? existing = inventory[localIndex];
+        if (existing == null)
+        {
+            inventory[localIndex] = item;
+            farmer.OnItemReceived(item, item.Stack, null);
+            return null;
+        }
+
+        if (!existing.canStackWith(item))
+        {
+            inventory[localIndex] = item;
+            farmer.OnItemReceived(item, item.Stack, null);
+            return existing;
+        }
+
+        int originalStack = item.Stack;
+        int remainder = existing.addToStack(item);
+        int added = originalStack - remainder;
+        if (added > 0)
+        {
+            item.Stack = remainder;
+            farmer.OnItemReceived(item, added, existing);
+        }
+
+        return remainder <= 0 ? null : item;
     }
 
     public void OnToolIndexChanged(Farmer farmer, int newIndex)
     {
-        // Handle any special logic when tool index changes
-        var (inventoryIndex, localIndex) = TranslateGlobalIndex(farmer, newIndex) ?? (0, newIndex);
+        var mapping = TranslateGlobalIndex(farmer, newIndex);
+        if (mapping == null)
+            return;
+
         var data = GetOrCreateFarmerData(farmer);
-        
-        // Auto-switch active inventory if needed
-        if (inventoryIndex != data.ActiveInventoryIndex)
-        {
-            SetActiveInventoryIndex(farmer, inventoryIndex);
-        }
+        data.ActiveInventoryIndex = mapping.Value.inventoryIndex;
     }
 
     public int GetActiveInventoryIndex(Farmer farmer)
@@ -170,10 +212,19 @@ public class MultiInventoryManager : IMultiInventoryManager
     public void SetActiveInventoryIndex(Farmer farmer, int inventoryIndex)
     {
         var data = GetOrCreateFarmerData(farmer);
-        if (inventoryIndex >= 0 && inventoryIndex < GetInventoryCount(farmer))
-        {
-            data.ActiveInventoryIndex = inventoryIndex;
-        }
+        IList<Item?>? targetInventory = GetInventory(farmer, inventoryIndex);
+        if (targetInventory == null || targetInventory.Count == 0)
+            return;
+
+        int localIndex = TranslateGlobalIndex(farmer, farmer.CurrentToolIndex)?.localIndex ?? 0;
+        localIndex = Math.Clamp(localIndex, 0, targetInventory.Count - 1);
+        int? globalIndex = GetGlobalIndex(farmer, inventoryIndex, localIndex);
+        if (globalIndex == null)
+            return;
+
+        data.ActiveInventoryIndex = inventoryIndex;
+        if (farmer.CurrentToolIndex != globalIndex.Value)
+            farmer.CurrentToolIndex = globalIndex.Value;
     }
 
     public int GetInventoryCount(Farmer farmer)
@@ -221,6 +272,44 @@ public class MultiInventoryManager : IMultiInventoryManager
         return null;
     }
 
+    public int? GetGlobalIndex(Farmer farmer, int inventoryIndex, int localIndex)
+    {
+        return GetGlobalIndex(farmer, GetAdditionalInventoryIds(farmer), inventoryIndex, localIndex);
+    }
+
+    private int? GetGlobalIndex(Farmer farmer, IReadOnlyList<string> additionalInventoryIds, int inventoryIndex, int localIndex)
+    {
+        if (inventoryIndex < 0 || inventoryIndex > additionalInventoryIds.Count || localIndex < 0)
+            return null;
+
+        int globalIndex = 0;
+        for (int i = 0; i < inventoryIndex; i++)
+        {
+            globalIndex += i == 0
+                ? farmer.Items.Count
+                : farmer.team.GetOrCreateGlobalInventory(additionalInventoryIds[i - 1]).Count;
+        }
+
+        int targetInventorySize = inventoryIndex == 0
+            ? farmer.Items.Count
+            : inventoryIndex <= additionalInventoryIds.Count
+                ? farmer.team.GetOrCreateGlobalInventory(additionalInventoryIds[inventoryIndex - 1]).Count
+                : -1;
+        if (localIndex >= targetInventorySize)
+            return null;
+
+        return globalIndex + localIndex;
+    }
+
+    public IReadOnlyList<int?> GetGlobalIndices(Farmer farmer, int inventoryIndex, int slotCount)
+    {
+        List<string> additionalInventoryIds = GetAdditionalInventoryIds(farmer);
+        var indices = new List<int?>(Math.Max(0, slotCount));
+        for (int localIndex = 0; localIndex < slotCount; localIndex++)
+            indices.Add(GetGlobalIndex(farmer, additionalInventoryIds, inventoryIndex, localIndex));
+        return indices;
+    }
+
     /// <summary>
     /// Ensures the given number of additional inventories exist and are at least the given size.
     /// Extra inventories are persisted in <see cref="FarmerTeam.globalInventories"/>.
@@ -263,16 +352,47 @@ public class MultiInventoryManager : IMultiInventoryManager
         if (!farmer.team.globalInventories.ContainsKey(id))
             return false;
 
+        Inventory inventory = farmer.team.GetOrCreateGlobalInventory(id);
+        if (inventory.Any(item => item != null))
+        {
+            _monitor.Log($"Refusing to remove non-empty inventory {inventoryIndex} for {farmer.Name}.", LogLevel.Warn);
+            return false;
+        }
+
+        var data = GetOrCreateFarmerData(farmer);
+        int activeInventoryIndex = data.ActiveInventoryIndex;
+        int activeLocalIndex = TranslateGlobalIndex(farmer, farmer.CurrentToolIndex)?.localIndex ?? 0;
+
+        if (activeInventoryIndex == inventoryIndex)
+        {
+            SetActiveInventoryIndex(farmer, 0);
+            activeInventoryIndex = 0;
+            activeLocalIndex = TranslateGlobalIndex(farmer, farmer.CurrentToolIndex)?.localIndex ?? 0;
+        }
+
         farmer.team.globalInventories.Remove(id);
 
         // Adjust active inventory index if needed
-        var data = GetOrCreateFarmerData(farmer);
-        if (data.ActiveInventoryIndex >= inventoryIndex)
+        if (activeInventoryIndex > inventoryIndex)
+            activeInventoryIndex--;
+
+        data.ActiveInventoryIndex = activeInventoryIndex;
+        IList<Item?>? activeInventory = GetInventory(farmer, activeInventoryIndex);
+        if (activeInventory is { Count: > 0 })
         {
-            data.ActiveInventoryIndex = Math.Max(0, data.ActiveInventoryIndex - 1);
+            activeLocalIndex = Math.Clamp(activeLocalIndex, 0, activeInventory.Count - 1);
+            int? globalIndex = GetGlobalIndex(farmer, activeInventoryIndex, activeLocalIndex);
+            if (globalIndex != null && farmer.CurrentToolIndex != globalIndex.Value)
+                farmer.CurrentToolIndex = globalIndex.Value;
         }
         
         return true;
+    }
+
+    /// <summary>Clear per-screen selection state after leaving a save.</summary>
+    public void ClearTransientState()
+    {
+        _farmerInventories.Clear();
     }
 
     private class FarmerInventoryData

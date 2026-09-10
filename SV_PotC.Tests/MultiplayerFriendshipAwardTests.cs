@@ -30,6 +30,59 @@ internal sealed class MultiplayerFriendshipAwardTests
         Run(nameof(FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships), FlatCharacterPack_AutoMirrorsRelationshipsAndFriendships);
         Run(nameof(FlatCharacterPack_LoadsConditionalUnlockMetadata), FlatCharacterPack_LoadsConditionalUnlockMetadata);
         Run(nameof(CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax), CharacterPackFlat_FriendsAcceptsArrayOrObjectSyntax);
+        Run(nameof(RuntimeGraphs_AreIsolated), RuntimeGraphs_AreIsolated);
+        Run(nameof(ApiImplementation_IsPublic), ApiImplementation_IsPublic);
+        Run(nameof(QuestDecay_SurvivesReloadAndSeasonBoundary), QuestDecay_SurvivesReloadAndSeasonBoundary);
+        Run(nameof(FamilyEvents_AreScopedAndClaimedOnce), FamilyEvents_AreScopedAndClaimedOnce);
+        Run(nameof(BundleBonus_UsesStoreSetting), BundleBonus_UsesStoreSetting);
+    }
+
+    private void BundleBonus_UsesStoreSetting()
+    {
+        var config = new ModConfig { UjimaBonus = 2, UjimaBonusStore = 31 };
+        Assert.Equal(93, MultiplayerRewardLogic.GetBundleBonus(3, config), "Bundles must use the configured store bonus, not the quest bonus.");
+    }
+
+    private void ApiImplementation_IsPublic()
+    {
+        Assert.True(typeof(CharacterManager).IsVisible, "SMAPI requires a publicly visible API implementation.");
+    }
+
+    private void RuntimeGraphs_AreIsolated()
+    {
+        var manager = new CharacterManager(null!, new TestMonitor());
+        manager.TryRegisterCharacter("Robin", false);
+        manager.TryRegisterCharacter("Maru", false);
+        manager.TryAddRelationship("Robin", Relationship.Daughter, "Maru", Relationship.Mother);
+        var first = manager.CreateRuntimeCharacters();
+        var second = manager.CreateRuntimeCharacters();
+        first["Robin"].AddRelationship(Relationship.Friend, new CharacterInfo("Player", true, CharacterType.Player));
+        Assert.Equal(1, second["Robin"].Relationships.Count, "Another farmer must not inherit generated links.");
+        Assert.Equal(1, manager.CreateRuntimeCharacters()["Robin"].Relationships.Count, "A new save must start with only registered links.");
+        Assert.True(ReferenceEquals(first["Maru"], first["Robin"].Relationships[0].Character), "Relationship targets must belong to the cloned graph.");
+    }
+
+    private void QuestDecay_SurvivesReloadAndSeasonBoundary()
+    {
+        var data = new PlayerData { LastDailyQuestDay = 27 };
+        Assert.Equal(8, MultiplayerRewardLogic.ClaimPersistentQuestBonus(data, 27, 8), "Completion day gets full reward.");
+        data = JsonConvert.DeserializeObject<PlayerData>(JsonConvert.SerializeObject(data))!;
+        Assert.Equal(0, MultiplayerRewardLogic.ClaimPersistentQuestBonus(data, 27, 8), "Reload must not replay a claim.");
+        Assert.Equal(4, MultiplayerRewardLogic.ClaimPersistentQuestBonus(data, 28, 8), "Next season's first day gets half.");
+        Assert.Equal(2, MultiplayerRewardLogic.ClaimPersistentQuestBonus(data, 29, 8), "Second following day gets quarter.");
+        Assert.Equal(0, MultiplayerRewardLogic.ClaimPersistentQuestBonus(data, 30, 8), "Reward expires after three days.");
+    }
+
+    private void FamilyEvents_AreScopedAndClaimedOnce()
+    {
+        var host = new PlayerData { KnownChildCount = 0 };
+        var guest = new PlayerData { KnownChildCount = 0 };
+        Assert.True(MultiplayerRewardLogic.ClaimFamilyEvent(host, 50, true, 0), "Wedding participant gets reward.");
+        Assert.False(MultiplayerRewardLogic.ClaimFamilyEvent(guest, 50, false, 0), "Another married farmer gets no reward.");
+        Assert.False(MultiplayerRewardLogic.ClaimFamilyEvent(host, 50, true, 0), "Wedding is claimed once.");
+        Assert.True(MultiplayerRewardLogic.ClaimFamilyEvent(guest, 51, false, 1), "New child rewards its parent.");
+        Assert.False(MultiplayerRewardLogic.ClaimFamilyEvent(guest, 51, false, 1), "Birth is claimed once.");
+        Assert.False(MultiplayerRewardLogic.ClaimFamilyEvent(new PlayerData(), 51, false, 2), "Existing children don't trigger retroactive birth rewards.");
     }
 
     private static void Run(string name, Action test)

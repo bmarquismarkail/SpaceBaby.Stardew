@@ -1,7 +1,7 @@
 {
   "Name": "Part of the Community",
   "Author": "Brandon Marquis Markail Green (Space Baby), 1.6 update by Nikki864, GMCM menu by MickeyMik (Eela11)",
-  "Version": "1.4.0",
+  "Version": "2.0.0",
   "Description": "Lets you increase friendship by supporting the community. Now includes a framework for modders to add custom characters and relationships.",
   "UniqueID": "SpaceBaby.PartOfTheCommunity",
   "EntryDll": "PartOfTheCommunity.dll",

@@ -12,54 +12,33 @@ namespace SpaceBaby.BuildersList
     {
         ScavengerMenu scavengermenu;
         private bool isReady, isHidden;
-        private bool checkForClick;
-        private bool scanForCraftingPageOnGameMenu;
-        CraftingPage currentCraftingPage;
         ModConfig config;
 
 
         public override void Entry(IModHelper helper)
         {
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
-            helper.Events.Display.RenderedHud += OnrenderedHUD;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnToTitle;
-            helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
-            helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
-            currentCraftingPage = null;
-            checkForClick = false;
-            scanForCraftingPageOnGameMenu = false;
             isReady = true;
-        }
-
-        private void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
-        {
-            if (isHidden) return;
-            if (!scanForCraftingPageOnGameMenu) return;
-            //check if we are still in the GameMenu. if not, stop updating
-            if (!(Game1.activeClickableMenu is GameMenu))
-            {
-                scanForCraftingPageOnGameMenu = false;
-                return;
-            }
-            //check if we are in the Crafting Page
-            if ((Game1.activeClickableMenu as GameMenu).currentTab != GameMenu.craftingTab) return;
-
-            currentCraftingPage = (CraftingPage)(Game1.activeClickableMenu as GameMenu).GetCurrentPage();
-            scavengermenu.iscooking = this.Helper.Reflection.GetField<bool>(currentCraftingPage, "cooking").GetValue();
-            checkForClick = true;
         }
 
         private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
         {
-            if (!isReady) return;
-            if (!isHidden && checkForClick)
+            if (!isReady || !Context.IsWorldReady || scavengermenu == null) return;
+            // GameMenu tab changes don't raise MenuChanged. Resolve the visible page now.
+            CraftingPage activeCraftingPage = Game1.activeClickableMenu as CraftingPage;
+            if (Game1.activeClickableMenu is GameMenu gameMenu)
+                activeCraftingPage = gameMenu.GetCurrentPage() as CraftingPage;
+            if (!isHidden && activeCraftingPage != null)
             {
                 if (e.Button.Equals(SButton.MouseLeft) && Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftControl))
                 {
-                    List<Dictionary<ClickableTextureComponent, CraftingRecipe>> recipes = this.Helper.Reflection.GetField<List<Dictionary<ClickableTextureComponent, CraftingRecipe>>>(currentCraftingPage, "pagesOfCraftingRecipes").GetValue();
+                    List<Dictionary<ClickableTextureComponent, CraftingRecipe>> recipes = this.Helper.Reflection.GetField<List<Dictionary<ClickableTextureComponent, CraftingRecipe>>>(activeCraftingPage, "pagesOfCraftingRecipes").GetValue();
 
-                    int currentCraftingPagePage = this.Helper.Reflection.GetField<int>(currentCraftingPage, "currentCraftingPage").GetValue();
+                    int currentCraftingPagePage = this.Helper.Reflection.GetField<int>(activeCraftingPage, "currentCraftingPage").GetValue();
+                    if (currentCraftingPagePage < 0 || currentCraftingPagePage >= recipes.Count)
+                        return;
                     foreach (ClickableTextureComponent button in recipes[currentCraftingPagePage].Keys)
                     {
                         if (button.containsPoint((int)e.Cursor.ScreenPixels.X, (int)e.Cursor.ScreenPixels.Y))
@@ -69,9 +48,10 @@ namespace SpaceBaby.BuildersList
                             this.config.currentRecipe = scavengermenu.ScavengerRecipe.name;
                             this.config.isCooking = scavengermenu.ScavengerRecipe.isCookingRecipe;
                             this.Helper.WriteConfig<ModConfig>(this.config);
+                            this.Helper.Input.Suppress(e.Button);
+                            return;
                         }
                     }
-                    this.Helper.Input.Suppress(e.Button);
                 }
             }
             if(e.Button.Equals(SButton.E) && Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftControl))
@@ -89,33 +69,6 @@ namespace SpaceBaby.BuildersList
             }
         }
 
-        private void OnMenuChanged(object sender, MenuChangedEventArgs e)
-        {
-            if (isHidden) return;
-            if (e.NewMenu is GameMenu menu)
-            {
-                if (menu.currentTab == GameMenu.craftingTab)
-                {
-                    currentCraftingPage = (CraftingPage)(Game1.activeClickableMenu as GameMenu).GetCurrentPage();
-                    scavengermenu.iscooking = this.Helper.Reflection.GetField<bool>(currentCraftingPage, "cooking").GetValue();
-                    checkForClick = true;
-                    return;
-                }
-                // I suspect that unless it immediately goes to the Crafting Tab, it's not going to update, so I need to check every tick for page changes
-                scanForCraftingPageOnGameMenu = true;
-                return;
-            }
-            if (e.NewMenu is CraftingPage)
-            {
-                currentCraftingPage = (e.NewMenu as CraftingPage);
-                scavengermenu.iscooking = this.Helper.Reflection.GetField<bool>(currentCraftingPage, "cooking").GetValue();
-                checkForClick = true;
-                return;
-            }
-            checkForClick = false;
-            scanForCraftingPageOnGameMenu = false;
-        }
-
         private void OnReturnToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             isReady = false;
@@ -123,8 +76,8 @@ namespace SpaceBaby.BuildersList
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
-            scavengermenu = new ScavengerMenu(null, this.Helper.Reflection);
             this.config = this.Helper.ReadConfig<ModConfig>();
+            scavengermenu = new ScavengerMenu(null, this.Helper.Reflection, this.config.BottomOffset);
             isHidden = !this.config.isActive;
             if (this.config.currentRecipe != null)
             { 
@@ -136,10 +89,5 @@ namespace SpaceBaby.BuildersList
             isReady = true;
         }
 
-        private void OnrenderedHUD(object sender, RenderedHudEventArgs e)
-        {
-            if (!isReady)
-                return;
-        }
     }
 }

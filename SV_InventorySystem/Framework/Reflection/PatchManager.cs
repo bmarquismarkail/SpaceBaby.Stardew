@@ -36,6 +36,7 @@ public class PatchManager
         {
             // Initialize the patches with dependencies
             FarmerPatches.Initialize(_monitor, _inventoryManager);
+            ObjectPatches.Initialize(_monitor, _inventoryManager);
 
             // Manually patch each method explicitly
             var farmerType = typeof(Farmer);
@@ -84,6 +85,31 @@ public class PatchManager
                 _monitor.Log("Patched CurrentToolIndex setter", LogLevel.Debug);
             }
 
+            // Patch CurrentTool setter, which writes directly through Farmer.Items in vanilla.
+            var currentToolSetter = AccessTools.Property(farmerType, "CurrentTool")?.GetSetMethod();
+            if (currentToolSetter != null)
+            {
+                _harmony.Patch(
+                    currentToolSetter,
+                    prefix: new HarmonyMethod(typeof(FarmerPatches), nameof(FarmerPatches.CurrentTool_Setter_Prefix))
+                );
+                _monitor.Log("Patched CurrentTool setter", LogLevel.Debug);
+            }
+
+            // Patch the one unguarded vanilla Farmer.Items[CurrentToolIndex] interaction.
+            var scarecrowAction = AccessTools.Method(
+                typeof(StardewValley.Object),
+                "CheckForActionOnScarecrow",
+                new[] { typeof(Farmer), typeof(bool) });
+            if (scarecrowAction != null)
+            {
+                _harmony.Patch(
+                    scarecrowAction,
+                    prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.CheckForActionOnScarecrow_Prefix))
+                );
+                _monitor.Log("Patched scarecrow hat interaction", LogLevel.Debug);
+            }
+
             _patchesApplied = true;
             _monitor.Log("Multi-inventory patches applied successfully", LogLevel.Info);
         }
@@ -129,22 +155,39 @@ public class PatchManager
             var currentItemProperty = farmerType.GetProperty("CurrentItem");
             var activeItemProperty = farmerType.GetProperty("ActiveItem");
             var currentToolIndexProperty = farmerType.GetProperty("CurrentToolIndex");
+            var currentToolProperty = farmerType.GetProperty("CurrentTool");
 
-            if (currentItemProperty == null)
+            if (currentItemProperty?.GetGetMethod() == null)
             {
-                _monitor.Log("CurrentItem property not found on Farmer class", LogLevel.Error);
+                _monitor.Log("CurrentItem getter not found on Farmer class", LogLevel.Error);
                 return false;
             }
 
-            if (activeItemProperty == null)
+            if (activeItemProperty?.GetGetMethod() == null || activeItemProperty.GetSetMethod() == null)
             {
-                _monitor.Log("ActiveItem property not found on Farmer class", LogLevel.Error);
+                _monitor.Log("ActiveItem getter or setter not found on Farmer class", LogLevel.Error);
                 return false;
             }
 
-            if (currentToolIndexProperty == null)
+            if (currentToolIndexProperty?.GetSetMethod() == null)
             {
-                _monitor.Log("CurrentToolIndex property not found on Farmer class", LogLevel.Error);
+                _monitor.Log("CurrentToolIndex setter not found on Farmer class", LogLevel.Error);
+                return false;
+            }
+
+            if (currentToolProperty?.GetSetMethod() == null)
+            {
+                _monitor.Log("CurrentTool setter not found on Farmer class", LogLevel.Error);
+                return false;
+            }
+
+            var scarecrowAction = AccessTools.Method(
+                typeof(StardewValley.Object),
+                "CheckForActionOnScarecrow",
+                new[] { typeof(Farmer), typeof(bool) });
+            if (scarecrowAction == null)
+            {
+                _monitor.Log("CheckForActionOnScarecrow method not found on Object class", LogLevel.Error);
                 return false;
             }
 

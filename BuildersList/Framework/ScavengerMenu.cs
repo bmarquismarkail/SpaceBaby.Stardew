@@ -16,16 +16,18 @@ namespace SpaceBaby.BuildersList
         public CraftingRecipe ScavengerRecipe;
         private Dictionary<string, int> currentRecipeList;
         public StardewModdingAPI.IReflectionHelper Reflection;
-        public bool iscooking, recipeListNeedsUpdate;
+        public bool recipeListNeedsUpdate;
         private ClickableComponent button;
         private Rectangle initialPosition;
+        private readonly int bottomOffset;
 
         public ScavengerMenu(
         Item lastScavengerItem,
-        StardewModdingAPI.IReflectionHelper reflection)
+        StardewModdingAPI.IReflectionHelper reflection, int bottomOffset = 96)
       : base(IClickableMenu.spaceToClearSideBorder, Game1.viewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder, Game1.tileSize, Game1.tileSize, false)
         {
             this.Reflection = reflection;
+            this.bottomOffset = Math.Max(0, bottomOffset);
             initialPosition = new Rectangle(this.xPositionOnScreen, this.yPositionOnScreen, this.width, this.height);
             if (ScavengerRecipe == null)
                 button = new ClickableComponent(initialPosition, "");
@@ -42,7 +44,7 @@ namespace SpaceBaby.BuildersList
         public void getDimensions()
         {
             initialPosition.X = IClickableMenu.spaceToClearSideBorder;
-            initialPosition.Y = Game1.viewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder;
+            initialPosition.Y = Game1.uiViewport.Height - ChatBox.chatboxHeight - IClickableMenu.spaceToClearSideBorder - this.bottomOffset;
 
             if (ScavengerRecipe == null)
             {
@@ -62,6 +64,7 @@ namespace SpaceBaby.BuildersList
                 this.xPositionOnScreen = initialPosition.X;
                 this.yPositionOnScreen = initialPosition.Y - this.height;
             }
+            this.yPositionOnScreen = Math.Clamp(this.yPositionOnScreen, 0, Math.Max(0, Game1.uiViewport.Height - this.height));
         }
         //Draws a box to put the item in the scavenger menu if none is already there, else draws the recipe text.
         public override void draw(SpriteBatch b)
@@ -82,30 +85,28 @@ namespace SpaceBaby.BuildersList
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
+            // Cooking remains tracking-only; always use the pinned recipe's type.
+            if (ScavengerRecipe == null || ScavengerRecipe.isCookingRecipe
+                || !StardewModdingAPI.Context.IsWorldReady || Game1.activeClickableMenu != null
+                || !Game1.player.craftingRecipes.ContainsKey(ScavengerRecipe.name))
+                return;
+
             if (button.containsPoint(x, y))
             {
-                if (!iscooking && ScavengerRecipe.doesFarmerHaveIngredientsInInventory(null))
+                if (ScavengerRecipe.doesFarmerHaveIngredientsInInventory(null))
                 {
                     Item obj = ScavengerRecipe.createItem();
                     ScavengerRecipe.consumeIngredients(null);
-                    Game1.playSound("crafting");
+                    if (playSound)
+                        Game1.playSound("crafting");
 
-                    if (!this.iscooking && Game1.player.craftingRecipes.ContainsKey(ScavengerRecipe.name))
+                    Game1.player.NotifyQuests(quest => quest.OnRecipeCrafted(ScavengerRecipe, obj));
+
+                    if (Game1.player.craftingRecipes.ContainsKey(ScavengerRecipe.name))
                     {
                         Game1.player.craftingRecipes[ScavengerRecipe.name] += ScavengerRecipe.numberProducedPerCraft;
                     }
-                    if (this.iscooking)
-                    {
-                        Game1.player.cookedRecipe(obj.DisplayName);
-                    }
-                    if (!this.iscooking)
-                    {
-                        Game1.stats.checkForCraftingAchievements();
-                    }
-                    else
-                    {
-                        Game1.stats.checkForCookingAchievements();
-                    }
+                    Game1.stats.checkForCraftingAchievements();
 
                     Game1.player.addItemByMenuIfNecessary(obj);
                 }
@@ -120,6 +121,18 @@ namespace SpaceBaby.BuildersList
         public int getDescriptionHeight(int width)
         {
             return (int)((double)(ScavengerRecipe.getNumberOfIngredients() * 36) + (double)(int)Game1.smallFont.MeasureString(Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.567")).Y + 21.0);
+        }
+
+        // Preserve vanilla category and seasonal wild-seed matching (-777).
+        private static int CountRecipeIngredient(IList<Item> items, string ingredientId)
+        {
+            int count = 0;
+            foreach (Item item in items)
+            {
+                if (item != null && CraftingRecipe.ItemMatchesForCrafting(item, ingredientId))
+                    count += item.Stack;
+            }
+            return count;
         }
 
         public void drawScavengerList(
@@ -140,7 +153,7 @@ namespace SpaceBaby.BuildersList
                 string unqualifiedItemId = entry.Key;
                 int requiredQuantity = entry.Value;
 
-                int inventoryItemCount = Game1.player.Items.CountId(unqualifiedItemId);
+                int inventoryItemCount = CountRecipeIngredient(Game1.player.Items, unqualifiedItemId);
 
                 int totalItemCount = requiredQuantity - inventoryItemCount;
                 
@@ -148,7 +161,7 @@ namespace SpaceBaby.BuildersList
                 
                 if (additional_crafting_items != null)
                 {
-                    additionalItemCount = Game1.player.getItemCountInList(additional_crafting_items, unqualifiedItemId);
+                    additionalItemCount = CountRecipeIngredient(additional_crafting_items, unqualifiedItemId);
                     if (totalItemCount > 0)
                         totalItemCount -= additionalItemCount;
                 }
