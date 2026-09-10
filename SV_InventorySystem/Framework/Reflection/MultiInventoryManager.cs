@@ -274,24 +274,40 @@ public class MultiInventoryManager : IMultiInventoryManager
 
     public int? GetGlobalIndex(Farmer farmer, int inventoryIndex, int localIndex)
     {
-        if (inventoryIndex < 0 || inventoryIndex >= GetInventoryCount(farmer) || localIndex < 0)
+        return GetGlobalIndex(farmer, GetAdditionalInventoryIds(farmer), inventoryIndex, localIndex);
+    }
+
+    private int? GetGlobalIndex(Farmer farmer, IReadOnlyList<string> additionalInventoryIds, int inventoryIndex, int localIndex)
+    {
+        if (inventoryIndex < 0 || inventoryIndex > additionalInventoryIds.Count || localIndex < 0)
             return null;
 
         int globalIndex = 0;
         for (int i = 0; i < inventoryIndex; i++)
         {
-            IList<Item?>? inventory = GetInventory(farmer, i);
-            if (inventory == null)
-                return null;
-
-            globalIndex += inventory.Count;
+            globalIndex += i == 0
+                ? farmer.Items.Count
+                : farmer.team.GetOrCreateGlobalInventory(additionalInventoryIds[i - 1]).Count;
         }
 
-        IList<Item?>? targetInventory = GetInventory(farmer, inventoryIndex);
-        if (targetInventory == null || localIndex >= targetInventory.Count)
+        int targetInventorySize = inventoryIndex == 0
+            ? farmer.Items.Count
+            : inventoryIndex <= additionalInventoryIds.Count
+                ? farmer.team.GetOrCreateGlobalInventory(additionalInventoryIds[inventoryIndex - 1]).Count
+                : -1;
+        if (localIndex >= targetInventorySize)
             return null;
 
         return globalIndex + localIndex;
+    }
+
+    public IReadOnlyList<int?> GetGlobalIndices(Farmer farmer, int inventoryIndex, int slotCount)
+    {
+        List<string> additionalInventoryIds = GetAdditionalInventoryIds(farmer);
+        var indices = new List<int?>(Math.Max(0, slotCount));
+        for (int localIndex = 0; localIndex < slotCount; localIndex++)
+            indices.Add(GetGlobalIndex(farmer, additionalInventoryIds, inventoryIndex, localIndex));
+        return indices;
     }
 
     /// <summary>

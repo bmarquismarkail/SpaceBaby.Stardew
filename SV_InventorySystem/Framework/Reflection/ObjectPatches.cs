@@ -28,12 +28,22 @@ internal static class ObjectPatches
         bool justCheckingForActivity,
         ref bool __result)
     {
-        if (justCheckingForActivity
-            || who.CurrentToolIndex < who.Items.Count
-            || __instance.QualifiedItemId != "(BC)126"
-            || who.CurrentItem is not Hat hat)
+        if (who.CurrentToolIndex < who.Items.Count
+            || __instance.QualifiedItemId != "(BC)126")
         {
             return true;
+        }
+
+        if (justCheckingForActivity)
+        {
+            __result = who.CurrentItem is Hat;
+            return false;
+        }
+
+        if (who.CurrentItem is not Hat hat)
+        {
+            __result = false;
+            return false;
         }
 
         if (InventoryManager == null || !InventoryManager.RemoveItem(who, hat))

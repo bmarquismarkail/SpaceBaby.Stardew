@@ -165,7 +165,34 @@ public class FarmerPatches
             else
             {
                 // Add item to multi-inventory at current tool index
-                InventoryManager.AddItemAtIndexWithRemainder(__instance, value, __instance.CurrentToolIndex);
+                Item? remainder = InventoryManager.AddItemAtIndexWithRemainder(__instance, value, __instance.CurrentToolIndex);
+                if (remainder != null)
+                {
+                    for (int index = 0; index < InventoryManager.GetTotalInventorySize(__instance); index++)
+                    {
+                        if (index == __instance.CurrentToolIndex)
+                            continue;
+
+                        var mapping = InventoryManager.TranslateGlobalIndex(__instance, index);
+                        if (mapping == null)
+                            continue;
+
+                        var inventory = InventoryManager.GetInventory(__instance, mapping.Value.inventoryIndex);
+                        if (inventory == null || mapping.Value.localIndex < 0 || mapping.Value.localIndex >= inventory.Count)
+                            continue;
+
+                        Item? existing = inventory[mapping.Value.localIndex];
+                        if (existing != null && !existing.canStackWith(remainder))
+                            continue;
+
+                        remainder = InventoryManager.AddItemAtIndexWithRemainder(__instance, remainder, index);
+                        if (remainder == null)
+                            break;
+                    }
+
+                    if (remainder != null)
+                        Game1.createItemDebris(remainder, __instance.getStandingPosition(), __instance.FacingDirection);
+                }
             }
 
             return false; // Skip original method

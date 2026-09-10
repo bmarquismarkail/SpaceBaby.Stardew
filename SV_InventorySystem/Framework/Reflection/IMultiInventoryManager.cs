@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using StardewValley;
 
 namespace SV_InventorySystem.Framework.Reflection;
@@ -99,4 +100,9 @@ public interface IMultiInventoryManager
     /// <param name="localIndex">The slot within that inventory.</param>
     /// <returns>The global index, or <c>null</c> if either index is invalid.</returns>
     int? GetGlobalIndex(Farmer farmer, int inventoryIndex, int localIndex);
+
+    /// <summary>
+    /// Gets the global indices for consecutive slots in an inventory.
+    /// </summary>
+    IReadOnlyList<int?> GetGlobalIndices(Farmer farmer, int inventoryIndex, int slotCount);
 }

@@ -122,15 +122,15 @@ namespace VerticalToolbar
             {
                 int selectedSlot = -1;
                 if (input.IsDown(Config.Controls.ChooseSlot1))
-                    selectedSlot = Convert.ToInt32(verticalToolbar.buttons[0].name);
+                    selectedSlot = GetToolbarSlotIndex(0);
                 else if (input.IsDown(Config.Controls.ChooseSlot2))
-                    selectedSlot = Convert.ToInt32(verticalToolbar.buttons[1].name);
+                    selectedSlot = GetToolbarSlotIndex(1);
                 else if (input.IsDown(Config.Controls.ChooseSlot3))
-                    selectedSlot = Convert.ToInt32(verticalToolbar.buttons[2].name);
+                    selectedSlot = GetToolbarSlotIndex(2);
                 else if (input.IsDown(Config.Controls.ChooseSlot4))
-                    selectedSlot = Convert.ToInt32(verticalToolbar.buttons[3].name);
+                    selectedSlot = GetToolbarSlotIndex(3);
                 else if (input.IsDown(Config.Controls.ChooseSlot5))
-                    selectedSlot = Convert.ToInt32(verticalToolbar.buttons[4].name);
+                    selectedSlot = GetToolbarSlotIndex(4);
 
                 if (selectedSlot >= 0)
                 {
@@ -169,7 +169,8 @@ namespace VerticalToolbar
             }
             else if (released < 300)
             {
-                Game1.player.CurrentToolIndex = currentToolIndex;
+                if (verticalToolbar.numToolsInToolbar > 0)
+                    Game1.player.CurrentToolIndex = currentToolIndex;
                 int polling = this.released;
                 int elapsedGameTime = Game1.currentGameTime.ElapsedGameTime.Milliseconds;
                 this.released = polling + elapsedGameTime;
@@ -179,6 +180,14 @@ namespace VerticalToolbar
                     released = 300;
                 }
             }
+        }
+
+        private int GetToolbarSlotIndex(int buttonIndex)
+        {
+            return buttonIndex >= 0 && buttonIndex < verticalToolbar.buttons.Count
+                && int.TryParse(verticalToolbar.buttons[buttonIndex].name, out int slotIndex)
+                ? slotIndex
+                : -1;
         }
 
         /// <summary>Raised after the player presses a button on the keyboard, controller, or mouse.</summary>

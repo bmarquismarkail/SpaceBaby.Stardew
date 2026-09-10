@@ -179,7 +179,7 @@ namespace VerticalToolbar.Framework
             }
 
             int inventoryCount = _inventoryManager.GetInventoryCount(Game1.player);
-            if (inventoryCount <= 1 && this.displayedInventoryIndex < 1)
+            if (inventoryCount <= 1)
             {
                 this.displayedInventoryIndex = -1;
                 for (int i = 0; i < buttons.Count; i++)
@@ -188,8 +188,9 @@ namespace VerticalToolbar.Framework
             }
 
             this.displayedInventoryIndex = Math.Clamp(Math.Max(1, this.displayedInventoryIndex), 1, inventoryCount - 1);
+            IReadOnlyList<int?> globalIndices = _inventoryManager.GetGlobalIndices(Game1.player, this.displayedInventoryIndex, buttons.Count);
             for (int i = 0; i < buttons.Count; i++)
-                buttons[i].name = (_inventoryManager.GetGlobalIndex(Game1.player, this.displayedInventoryIndex, i) ?? -1).ToString();
+                buttons[i].name = (globalIndices[i] ?? -1).ToString();
         }
 
         /// <summary>Set which logical inventory is shown in the vertical toolbar.</summary>
@@ -198,7 +199,7 @@ namespace VerticalToolbar.Framework
             if (_inventoryManager == null)
                 return;
 
-            if (inventoryIndex < 0 || inventoryIndex >= _inventoryManager.GetInventoryCount(Game1.player))
+            if (inventoryIndex <= 0 || inventoryIndex >= _inventoryManager.GetInventoryCount(Game1.player))
                 return;
 
             this.displayedInventoryIndex = inventoryIndex;
