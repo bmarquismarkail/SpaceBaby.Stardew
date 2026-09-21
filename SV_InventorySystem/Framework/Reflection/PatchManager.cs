@@ -1,6 +1,7 @@
 using HarmonyLib;
 using StardewModdingAPI;
 using StardewValley;
+using Microsoft.Xna.Framework;
 
 namespace SV_InventorySystem.Framework.Reflection;
 
@@ -40,6 +41,13 @@ public class PatchManager
 
             // Manually patch each method explicitly
             var farmerType = typeof(Farmer);
+
+            var updateCommon = AccessTools.Method(farmerType, "updateCommon",
+                new[] { typeof(GameTime), typeof(GameLocation) })
+                ?? throw new MissingMethodException("Farmer.updateCommon(GameTime, GameLocation) not found.");
+            _harmony.Patch(updateCommon,
+                postfix: new HarmonyMethod(typeof(FarmerPatches), nameof(FarmerPatches.UpdateCommon_Postfix)));
+            _monitor.Log("Patched additional-inventory tool updates", LogLevel.Debug);
             
             // Patch CurrentItem getter
             var currentItemGetter = AccessTools.Property(farmerType, "CurrentItem")?.GetGetMethod();
@@ -153,6 +161,12 @@ public class PatchManager
             // Check if required types and methods exist
             var farmerType = typeof(Farmer);
             var currentItemProperty = farmerType.GetProperty("CurrentItem");
+            if (AccessTools.Method(farmerType, "updateCommon",
+                new[] { typeof(GameTime), typeof(GameLocation) }) == null)
+            {
+                _monitor.Log("updateCommon method not found on Farmer class", LogLevel.Error);
+                return false;
+            }
             var activeItemProperty = farmerType.GetProperty("ActiveItem");
             var currentToolIndexProperty = farmerType.GetProperty("CurrentToolIndex");
             var currentToolProperty = farmerType.GetProperty("CurrentTool");

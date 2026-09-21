@@ -2,6 +2,7 @@ using StardewModdingAPI;
 using StardewValley;
 using System.Reflection;
 using HarmonyLib;
+using Microsoft.Xna.Framework;
 
 namespace SV_InventorySystem.Framework.Reflection;
 
@@ -18,6 +19,41 @@ public class FarmerPatches
     {
         Monitor = monitor;
         InventoryManager = inventoryManager;
+    }
+
+    /// <summary>Update tools outside the base inventory, including inactive tools with pending events.</summary>
+    public static void UpdateCommon_Postfix(Farmer __instance, GameTime time)
+    {
+        if (InventoryManager == null)
+            return;
+
+        // Vanilla updateCommon ticks Items and TemporaryItem for both local and remote farmers.
+        // Fishing rods need these ticks to process casting, put-away, and movement-release events.
+        int inventoryCount = InventoryManager.GetInventoryCount(__instance);
+        if (inventoryCount <= 1)
+            return;
+
+        var updated = new HashSet<Item>(ReferenceEqualityComparer.Instance);
+        foreach (var item in __instance.Items)
+        {
+            if (item is Tool)
+                updated.Add(item);
+        }
+        if (__instance.TemporaryItem is Tool temporaryTool)
+            updated.Add(temporaryTool);
+
+        for (int inventoryIndex = 1; inventoryIndex < inventoryCount; inventoryIndex++)
+        {
+            var inventory = InventoryManager.GetInventory(__instance, inventoryIndex);
+            if (inventory == null)
+                continue;
+
+            for (int slot = inventory.Count - 1; slot >= 0; slot--)
+            {
+                if (inventory[slot] is Tool tool && updated.Add(tool))
+                    tool.tickUpdate(time, __instance);
+            }
+        }
     }
 
     /// <summary>
